@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Cpu, Activity, ChevronRight, BookOpen, AlertCircle, RefreshCw, Layers, TrendingUp, TrendingDown, HelpCircle } from 'lucide-react';
-import ThreeBackground from './components/ThreeBackground';
+import Lightfall from './components/Lightfall';
 import InteractiveChart from './components/InteractiveChart';
 import ScannerTable from './components/ScannerTable';
 import ControlPanel from './components/ControlPanel';
@@ -119,8 +119,30 @@ function App() {
 
   return (
     <div className="relative min-h-screen text-white pb-16 font-sans bg-[#05070e]">
-      {/* 3D Rotating Sphere Background */}
-      <ThreeBackground />
+      {/* Lightfall Animated Background Container */}
+      <div style={{ width: '100%', height: '600px', position: 'absolute', top: 0, left: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+        <Lightfall
+          colors={['#A6C8FF', '#5227FF', '#FF9FFC']}
+          backgroundColor="#0A29FF"
+          speed={0.5}
+          streakCount={2}
+          streakWidth={1}
+          streakLength={1}
+          glow={1}
+          density={0.6}
+          twinkle={1}
+          zoom={3}
+          backgroundGlow={0.5}
+          opacity={1}
+          mouseInteraction
+          mouseStrength={0.5}
+          mouseRadius={1}
+          color1="#A6C8FF"
+          color2="#5227FF"
+          color3="#FF9FFC"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#05070e]/80 to-[#05070e]" />
+      </div>
 
       {/* Top Header / Navigation Bar */}
       <header className="w-full border-b border-white/5 bg-[#05070e]/60 backdrop-blur-lg sticky top-0 z-50 px-8 py-4 flex justify-between items-center">
@@ -164,7 +186,7 @@ function App() {
       </header>
 
       {/* Main Grid Layout */}
-      <main className="max-w-7xl mx-auto px-6 mt-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <main className="max-w-7xl mx-auto px-6 mt-8 grid grid-cols-1 lg:grid-cols-4 gap-8 relative z-10">
         
         {/* Left column: Controls */}
         <motion.div 
