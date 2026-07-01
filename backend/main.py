@@ -163,7 +163,8 @@ def get_chart_data(symbol: str, timeframe: str = "15m"):
                     "priority": active_sig.priority,
                     "quality": active_sig.quality,
                     "justification": active_sig.justification,
-                    "risk_framing": active_sig.initial_risk_framing
+                    "risk_framing": active_sig.initial_risk_framing,
+                    "timestamp": active_sig.timestamp.isoformat() if hasattr(active_sig.timestamp, 'isoformat') else active_sig.timestamp
                 }
                 
         return {
