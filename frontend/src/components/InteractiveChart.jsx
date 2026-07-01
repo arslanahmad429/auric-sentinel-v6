@@ -49,14 +49,14 @@ const InteractiveChart = ({ data, orderBlocks, signals }) => {
 
       chartRef.current = chart;
 
-      // Add Candlestick Series in Luxury Monochrome
+      // Add Candlestick Series with High-Contrast Green/Red
       const candleSeries = chart.addSeries(CandlestickSeries, {
-        upColor: '#ffffff', // Bulish - White
-        downColor: '#26262b', // Bearish - Charcoal
-        borderUpColor: '#ffffff',
-        borderDownColor: '#26262b',
-        wickUpColor: '#ffffff',
-        wickDownColor: '#26262b',
+        upColor: '#10b981', // Classic Emerald Green
+        downColor: '#ef4444', // Classic Ruby Red
+        borderUpColor: '#10b981',
+        borderDownColor: '#ef4444',
+        wickUpColor: '#10b981',
+        wickDownColor: '#ef4444',
       });
 
       // Clean & sort candle data
@@ -81,8 +81,8 @@ const InteractiveChart = ({ data, orderBlocks, signals }) => {
         candleSeries.setData(cleanCandles);
       }
 
-      // Add EMA Ribbons (White/Silver/Grey gradients)
-      const colors = ['#ffffff', '#e5e5e5', '#a3a3a3', '#525252'];
+      // Add EMA Ribbons (distinct colored lines for tracking crossovers)
+      const colors = ['#00f0ff', '#39ff14', '#ffd700', '#ff007f']; // Cyan, Green, Gold, Magenta
       const lengths = [20, 50, 100, 200];
 
       lengths.forEach((len, idx) => {
@@ -113,13 +113,13 @@ const InteractiveChart = ({ data, orderBlocks, signals }) => {
         }
       });
 
-      // Add OB Horizontal Price Lines in Monochrome shades
+      // Add OB Horizontal Price Lines in high-contrast neon bounds
       if (orderBlocks) {
         orderBlocks.forEach((ob) => {
           // High Boundary Line
           candleSeries.createPriceLine({
             price: ob.high,
-            color: ob.is_bullish ? 'rgba(255, 255, 255, 0.4)' : 'rgba(115, 115, 115, 0.4)',
+            color: ob.is_bullish ? 'rgba(57, 255, 20, 0.45)' : 'rgba(255, 0, 127, 0.45)', // Neon Green/Magenta
             lineWidth: 1,
             lineStyle: LineStyle.Dashed,
             axisLabelVisible: true,
@@ -129,7 +129,7 @@ const InteractiveChart = ({ data, orderBlocks, signals }) => {
           // Low Boundary Line
           candleSeries.createPriceLine({
             price: ob.low,
-            color: ob.is_bullish ? 'rgba(255, 255, 255, 0.4)' : 'rgba(115, 115, 115, 0.4)',
+            color: ob.is_bullish ? 'rgba(57, 255, 20, 0.45)' : 'rgba(255, 0, 127, 0.45)', // Neon Green/Magenta
             lineWidth: 1,
             lineStyle: LineStyle.Dashed,
             axisLabelVisible: true,
@@ -138,7 +138,7 @@ const InteractiveChart = ({ data, orderBlocks, signals }) => {
         });
       }
 
-      // Set Signal Markers in Monochrome
+      // Set Signal Markers in high contrast colors
       if (signals && signals.length > 0) {
         const markers = signals
           .map((sig) => {
@@ -147,7 +147,7 @@ const InteractiveChart = ({ data, orderBlocks, signals }) => {
             return {
               time: timeVal,
               position: sig.direction === 'BUY' ? 'belowBar' : 'aboveBar',
-              color: '#ffffff', // All signals are clean white markers
+              color: sig.direction === 'BUY' ? '#10b981' : '#ef4444', // Green for BUY, Red for SELL
               shape: sig.direction === 'BUY' ? 'arrowUp' : 'arrowDown',
               text: `${sig.direction} (${sig.quality})`,
               size: 2.2,
@@ -182,20 +182,20 @@ const InteractiveChart = ({ data, orderBlocks, signals }) => {
   }, [data, orderBlocks, signals]);
 
   return (
-    <div className="relative w-full rounded-2xl border border-[#26262b] overflow-hidden bg-cyber-bg/70 backdrop-blur shadow-glow-cyan/5">
+    <div className="relative w-full rounded-2xl border border-[#26262b] overflow-hidden bg-[#050508]/75 backdrop-blur shadow-glow-cyan/5">
       {/* Legend overlays */}
       <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-3 bg-[#0d0d11]/90 p-3 rounded-lg border border-[#26262b] text-xs backdrop-blur-md">
-        <span className="flex items-center gap-1.5 text-white">
-          <span className="w-2.5 h-2.5 rounded-full bg-white shadow-glow-cyan" /> EMA 20
+        <span className="flex items-center gap-1.5 text-[#00f0ff]">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#00f0ff] shadow-glow-cyan" /> EMA 20
         </span>
-        <span className="flex items-center gap-1.5 text-[#e5e5e5]">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#e5e5e5]" /> EMA 50
+        <span className="flex items-center gap-1.5 text-[#39ff14]">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#39ff14]" /> EMA 50
         </span>
-        <span className="flex items-center gap-1.5 text-[#a3a3a3]">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#a3a3a3]" /> EMA 100
+        <span className="flex items-center gap-1.5 text-[#ffd700]">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#ffd700]" /> EMA 100
         </span>
-        <span className="flex items-center gap-1.5 text-[#525252]">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#525252]" /> EMA 200
+        <span className="flex items-center gap-1.5 text-[#ff007f]">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#ff007f]" /> EMA 200
         </span>
       </div>
       <div ref={chartContainerRef} className="w-full h-[480px]" />

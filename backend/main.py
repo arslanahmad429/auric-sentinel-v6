@@ -1,6 +1,10 @@
-from fastapi import FastAPI, HTTPException, Body
+import re
+import time
+from fastapi import FastAPI, HTTPException, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Dict, Any, List
+from collections import defaultdict
 import pandas as pd
 from backend.config import settings, SystemSettings
 from backend.core.data_feed import DataFeed
@@ -10,17 +14,77 @@ from backend.core.scanner import WatchlistScanner
 
 app = FastAPI(title="AURIC SENTINEL Intelligence System Backend", version="1.0.0")
 
-# Enable CORS for React Frontend
+# 1. Simple In-Memory Token-Bucket Rate Limiter Middleware
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, requests_per_minute: int = 60):
+        super().__init__(app)
+        self.requests_per_minute = requests_per_minute
+        self.visitor_records = defaultdict(list)
+
+    async def dispatch(self, request: Request, call_next):
+        # Allow Swagger docs to bypass rate limit
+        if request.url.path in ["/docs", "/openapi.json", "/redoc"]:
+            return await call_next(request)
+
+        client_ip = request.client.host if request.client else "unknown"
+        current_time = time.time()
+        
+        # Clean up old timestamps (older than 60 seconds)
+        self.visitor_records[client_ip] = [
+            t for t in self.visitor_records[client_ip] if current_time - t < 60
+        ]
+        
+        if len(self.visitor_records[client_ip]) >= self.requests_per_minute:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Rate limit exceeded."}
+            )
+            
+        self.visitor_records[client_ip].append(current_time)
+        return await call_next(request)
+
+# 2. OWASP Secure Headers Injection Middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"  # Clickjacking mitigation
+        response.headers["X-Content-Type-Options"] = "nosniff"  # MIME-sniffing prevention
+        response.headers["X-XSS-Protection"] = "1; mode=block"  # Cross-Site Scripting block
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "connect-src 'self' http://localhost:8000 http://localhost:5173 http://127.0.0.1:8000 http://127.0.0.1:5173; "
+            "img-src 'self' data: http://localhost:5173 http://localhost:8000 http://127.0.0.1:5173 http://127.0.0.1:8000;"
+        )
+        return response
+
+# Register Custom Security Middlewares
+app.add_middleware(RateLimitMiddleware, requests_per_minute=45)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Restrict CORS to trusted local web domains rather than wildcards
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict to frontend domain
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 # Initialize instances
 scanner = WatchlistScanner()
+
+# Helper for strict ticker symbol sanitization to prevent injection
+TICKER_REGEX = re.compile(r"^[A-Za-z0-9=\-\.\^\$]{1,16}$")
 
 @app.get("/api/status")
 def get_system_status():
@@ -45,22 +109,22 @@ def get_settings():
     return settings
 
 @app.post("/api/settings")
-def update_settings(new_settings: Dict[str, Any] = Body(...)):
+def update_settings(new_settings: SystemSettings = Body(...)):
     """
-    Updates system settings dynamically at runtime.
+    Updates system settings dynamically at runtime using Pydantic model validation.
+    Protects against property/prototype injection.
     """
+    global settings
     try:
-        # Loop through keys and update settings fields
-        for key, value in new_settings.items():
-            if hasattr(settings, key):
-                attr = getattr(settings, key)
-                if isinstance(attr, dict) or hasattr(attr, "__dict__"):
-                    # Nested model update
-                    for subkey, subval in value.items():
-                        if hasattr(attr, subkey):
-                            setattr(attr, subkey, subval)
-                else:
-                    setattr(settings, key, value)
+        # Pydantic handles full schema type validation automatically
+        settings.ema = new_settings.ema
+        settings.structure = new_settings.structure
+        settings.signal = new_settings.signal
+        settings.filter = new_settings.filter
+        settings.risk = new_settings.risk
+        settings.scanner = new_settings.scanner
+        settings.theme = new_settings.theme
+        settings.debug_mode = new_settings.debug_mode
         return {"status": "success", "message": "Settings updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to update settings: {str(e)}")
@@ -85,6 +149,12 @@ def get_chart_data(symbol: str, timeframe: str = "15m"):
     Returns detailed candlestick data for the chart, combined with 
     computed indicators, swings, order blocks, and risk lines.
     """
+    # Enforce strict regex validation on ticker input to prevent injection
+    if not TICKER_REGEX.match(symbol):
+        raise HTTPException(status_code=400, detail="Invalid ticker symbol format")
+    if timeframe not in ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]:
+        raise HTTPException(status_code=400, detail="Invalid timeframe format")
+
     try:
         # Fetch execution timeframe data
         df_etf = DataFeed.fetch_data(symbol, timeframe, limit=300)
