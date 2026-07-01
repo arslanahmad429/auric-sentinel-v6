@@ -8,6 +8,7 @@ import ControlPanel from './components/ControlPanel';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const API_BASE = 'http://localhost:8000/api';
+const LIGHTFALL_COLORS = ['#A6C8FF', '#5227FF', '#FF9FFC'];
 
 function App() {
   const [settings, setSettings] = useState({
@@ -122,7 +123,7 @@ function App() {
       {/* Lightfall Animated Background Container */}
       <div style={{ width: '100%', height: '600px', position: 'absolute', top: 0, left: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
         <Lightfall
-          colors={['#A6C8FF', '#5227FF', '#FF9FFC']}
+          colors={LIGHTFALL_COLORS}
           backgroundColor="#0A29FF"
           speed={0.5}
           streakCount={2}

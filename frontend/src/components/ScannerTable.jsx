@@ -32,9 +32,9 @@ const ScannerTable = ({ scanResults, activeSymbol, onSelectSymbol }) => {
             {scanResults && scanResults.length > 0 ? (
               scanResults.map((result) => {
                 const isSelected = activeSymbol === result.symbol;
-                const trend = result.htf_trend;
-                const bias = trend.Primary_Bias;
-                const conf = trend.Trend_Confidence;
+                const trend = result.htf_trend || {};
+                const bias = trend.Primary_Bias || 'Neutral';
+                const conf = trend.Trend_Confidence || 'Neutral';
                 const reductions = result.signal ? result.signal.justification?.reductions_count || 0 : 4;
                 
                 return (

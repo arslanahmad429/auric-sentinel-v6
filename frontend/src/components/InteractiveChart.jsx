@@ -173,9 +173,9 @@ const InteractiveChart = ({ data, orderBlocks, signals }) => {
       window.removeEventListener('resize', handleResize);
       if (chart) {
         try {
-          chart.destroy();
+          chart.remove();
         } catch (err) {
-          console.error("Error destroying chart:", err);
+          console.error("Error removing chart:", err);
         }
       }
     };

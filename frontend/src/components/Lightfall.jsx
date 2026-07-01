@@ -4,7 +4,7 @@ const Lightfall = ({
   colors = ['#A6C8FF', '#5227FF', '#FF9FFC'],
   backgroundColor = '#0A29FF',
   speed = 0.5,
-  streakCount = 2, // Multiplier for density
+  streakCount = 2,
   streakWidth = 1,
   streakLength = 1,
   glow = 1,
@@ -29,8 +29,9 @@ const Lightfall = ({
     if (!ctx) return;
 
     let animationFrameId;
-    let width = (canvas.width = canvas.parentElement.clientWidth || window.innerWidth);
-    let height = (canvas.height = canvas.parentElement.clientHeight || window.innerHeight);
+    const parent = canvas.parentElement || { clientWidth: window.innerWidth, clientHeight: window.innerHeight };
+    let width = (canvas.width = parent.clientWidth || window.innerWidth);
+    let height = (canvas.height = parent.clientHeight || window.innerHeight);
 
     // Streaks configuration
     const activeColors = colors && colors.length > 0 ? colors : [color1, color2, color3].filter(Boolean);
@@ -70,7 +71,6 @@ const Lightfall = ({
           const dist = Math.hypot(dx, dy);
           if (dist < mouse.radius) {
             const force = (mouse.radius - dist) / mouse.radius;
-            // Pull streaks slightly toward mouse position horizontally
             this.x -= (dx / dist) * force * mouseStrength * 5;
           }
         }
@@ -85,13 +85,11 @@ const Lightfall = ({
         ctx.save();
         ctx.globalAlpha = this.alpha * opacity;
         
-        // Setup shadow glow if enabled
         if (glow > 0) {
           ctx.shadowBlur = 10 * glow;
           ctx.shadowColor = this.color;
         }
 
-        // Create linear gradient for falling streak tail fadeout
         const grad = ctx.createLinearGradient(
           this.x - this.vx * this.length * 0.1, 
           this.y - this.length, 
@@ -123,7 +121,6 @@ const Lightfall = ({
       }
 
       update() {
-        // Twinkling effect
         this.alpha += this.speed;
         if (this.alpha > 1 || this.alpha < 0) {
           this.speed = -this.speed;
@@ -149,8 +146,9 @@ const Lightfall = ({
     }
 
     const handleResize = () => {
-      width = canvas.width = canvas.parentElement.clientWidth || window.innerWidth;
-      height = canvas.height = canvas.parentElement.clientHeight || window.innerHeight;
+      const activeParent = canvas.parentElement || { clientWidth: window.innerWidth, clientHeight: window.innerHeight };
+      width = canvas.width = activeParent.clientWidth || window.innerWidth;
+      height = canvas.height = activeParent.clientHeight || window.innerHeight;
     };
 
     const handleMouseMove = (e) => {
@@ -164,19 +162,20 @@ const Lightfall = ({
       mouse.y = null;
     };
 
+    // Track events on window to support background canvas layering
     window.addEventListener('resize', handleResize);
-    canvas.parentElement.addEventListener('mousemove', handleMouseMove);
-    canvas.parentElement.addEventListener('mouseleave', handleMouseLeave);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseleave', handleMouseLeave);
 
     // Animation Loop
     const animate = () => {
       ctx.clearRect(0, 0, width, height);
 
-      // 1. Draw glowing background
+      // Draw background
       ctx.fillStyle = backgroundColor;
       ctx.fillRect(0, 0, width, height);
 
-      // 2. Draw soft colorized radial glow
+      // Draw soft colorized radial glow
       if (backgroundGlow > 0) {
         const glowX = mouse.x !== null ? mouse.x : width / 2;
         const glowY = mouse.y !== null ? mouse.y : height / 2;
@@ -188,21 +187,21 @@ const Lightfall = ({
           glowY, 
           Math.max(width, height) * 0.4
         );
-        radialGrad.addColorStop(0, `${color2}33`); // 20% opacity
-        radialGrad.addColorStop(0.5, `${color3}11`); // 6% opacity
+        radialGrad.addColorStop(0, `${color2}33`);
+        radialGrad.addColorStop(0.5, `${color3}11`);
         radialGrad.addColorStop(1, 'transparent');
         
         ctx.fillStyle = radialGrad;
         ctx.fillRect(0, 0, width, height);
       }
 
-      // 3. Draw stars
+      // Draw stars
       stars.forEach((star) => {
         star.update();
         star.draw();
       });
 
-      // 4. Draw streaks
+      // Draw streaks
       streaks.forEach((streak) => {
         streak.update();
         streak.draw();
@@ -216,10 +215,8 @@ const Lightfall = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
-      if (canvas.parentElement) {
-        canvas.parentElement.removeEventListener('mousemove', handleMouseMove);
-        canvas.parentElement.removeEventListener('mouseleave', handleMouseLeave);
-      }
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, [
     colors,
