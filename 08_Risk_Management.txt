@@ -1,0 +1,238 @@
+AURIC SENTINEL
+DOCUMENT 08: RISK MANAGEMENT
+================================================================
+
+1. PURPOSE
+
+The Risk Management module is responsible for attaching a concrete risk
+framework - stop-loss reference, take-profit reference(s), and position
+sizing guidance - to any signal approved by the Filter Engine. It
+converts a directional signal into a fully framed trade idea that the
+trader can evaluate and act on with a clear understanding of risk
+before ever placing an order.
+
+2. WHY THIS MODULE EXISTS
+
+A directional signal without a defined risk framework is incomplete
+from a trading standpoint. This module exists to ensure every approved
+signal carries an explicit, rule-based, and consistent risk structure,
+removing the need for the trader to manually calculate stop and target
+levels in the moment, and reducing the chance of inconsistent, emotion-
+driven risk decisions.
+
+3. FUNCTIONAL REQUIREMENTS
+
+- The module must calculate a stop-loss reference level for each
+  approved signal, based on a clearly defined, consistent method (for
+  example, referencing the relevant structural zone from the Market
+  Structure module, or a volatility-based buffer beyond the signal's
+  originating price structure).
+- The module must calculate one or more take-profit reference levels
+  for each approved signal, using a clearly defined method (for
+  example, a fixed risk-multiple target framework, or reference to the
+  next relevant structural level).
+- The module must express risk in terms of R-multiples (risk units)
+  wherever practical, so the trader can evaluate potential trades in
+  consistent, comparable terms regardless of instrument or price scale.
+- The module must provide position sizing guidance in terms of
+  suggested quantity or lot/contract size, if the trader supplies
+  account risk parameters (for example, account size and desired risk
+  percentage per trade), while making clear this is guidance, not an
+  automated execution instruction.
+- The module must support a breakeven adjustment concept, where the
+  stop-loss reference can be described as moving to breakeven after a
+  defined milestone (for example, after price reaches a first target
+  level), consistent with prior system designs the trader has used.
+- The module must track and report live unrealized R-multiple progress
+  for an active signal as price moves, for display on the Dashboard.
+
+4. NON-FUNCTIONAL REQUIREMENTS
+
+- Once a signal's initial stop-loss and take-profit levels are
+  calculated and displayed at signal confirmation, those original
+  reference levels must not silently change retroactively; any
+  subsequent adjustment (such as a breakeven move) must be represented
+  as a new, clearly labeled state rather than an edit to history.
+- Risk calculations must be based only on confirmed data available at
+  or before the signal's confirmation bar.
+- All risk framing must be clearly presented as informational guidance,
+  not as an automated trade execution instruction, consistent with the
+  system's defined scope (Document 00, Section 7).
+
+5. USER CONFIGURABLE SETTINGS
+
+- Stop-loss calculation method selection (structural-zone-based versus
+  volatility-based, if multiple methods are supported).
+- Take-profit framework selection (fixed R-multiple targets versus
+  structural-level targets).
+- Number of take-profit levels to calculate and display (for example,
+  a three-target framework consistent with prior systems the trader has
+  used).
+- Breakeven trigger condition (for example, breakeven activates once
+  the first target level is reached).
+- Optional account size and risk-percentage-per-trade inputs for
+  position sizing guidance.
+
+6. INPUT DESCRIPTION
+
+Primary inputs are: the approved signal's direction and confirmation
+price from the Filter Engine (Document 05), relevant structural zone
+data from the Market Structure module (Document 03) if structural stop/
+target methods are used, and optionally trader-supplied account risk
+parameters.
+
+7. OUTPUT DESCRIPTION
+
+The module's output, consumed by the Dashboard (Document 06) and
+Alerts (Document 07), consists of:
+- Entry reference price.
+- Stop-loss reference price and, if applicable, its current breakeven
+  status.
+- One or more take-profit reference prices.
+- Current risk framing expressed in R-multiples.
+- Live unrealized R-multiple progress for the active signal.
+- Optional suggested position size, if account parameters were
+  supplied.
+
+8. VISUAL BEHAVIOUR
+
+Entry, stop-loss, and take-profit levels should be represented on the
+chart using clearly distinguishable line styles and colors (for
+example, a consistent convention such as entry in a neutral color,
+stop-loss in a warning color, and targets in a positive/progress
+color), consistent with the visual conventions the trader has used in
+prior systems. These reference lines should extend forward from the
+signal's origin point and remain visible while the signal is active,
+with clear price labels.
+
+9. SIGNAL BEHAVIOUR
+
+Risk framing is calculated once, at the moment a signal is approved by
+the Filter Engine, using data available at that moment. If a breakeven
+or other defined risk-adjustment condition is later met, the module
+must represent that as an explicit new state change (clearly shown as
+"moved to breakeven" or equivalent), not as a silent modification of
+the original stop-loss value.
+
+10. TRADING PHILOSOPHY BEHIND THIS MODULE
+
+This module operationalizes the principle that a trade idea is not
+complete until its risk is fully defined in advance, and that
+consistent risk framing across all signals is what allows a trader to
+evaluate a trading system's performance meaningfully over time.
+R-multiple-based reporting is used specifically because it allows fair
+comparison across different signals and different market conditions.
+
+11. DECISION PROCESS
+
+On each new approved signal:
+1. Determine the entry reference (typically the price at signal
+   confirmation).
+2. Calculate the stop-loss reference using the configured method.
+3. Calculate one or more take-profit references using the configured
+   method.
+4. Express the initial risk framing in R-multiples.
+5. If account parameters are supplied, calculate suggested position
+   size.
+
+On each subsequent bar while a signal remains active:
+6. Update live unrealized R-multiple progress based on current price
+   relative to entry and stop-loss.
+7. Check whether any configured breakeven or risk-adjustment condition
+   has been met, and if so, update the displayed risk state
+   accordingly (as a new state, not a retroactive edit).
+
+12. EDGE CASES
+
+- Structural-zone-based stop calculation where the relevant zone is
+  extremely close to the entry price, producing an unreasonably tight
+  stop: the module should have a defined minimum stop distance
+  safeguard, expressed in a way appropriate to the instrument's typical
+  volatility.
+- Structural-zone-based stop calculation where the relevant zone is
+  extremely far from entry, producing an unreasonably wide stop: the
+  module should have a defined maximum reasonable stop distance
+  safeguard or at minimum flag the wide stop clearly to the trader.
+- Signal invalidated before reaching either stop or target: the module
+  must clearly report the signal as closed/invalidated rather than
+  leaving stale risk framing displayed indefinitely.
+- Trader has not supplied account risk parameters: position sizing
+  guidance should simply be omitted, not replaced with a misleading
+  default value.
+
+13. PERFORMANCE EXPECTATIONS
+
+Risk framing should be calculated and displayed on the same confirmed
+bar as the signal itself, with live R-multiple tracking updating
+smoothly on each subsequent bar without noticeable lag.
+
+14. FUTURE EXPANSION IDEAS
+
+- Multiple partial-close milestones (for example, partial close at each
+  target level with remaining position trailing).
+- Historical statistics module summarizing realized R-multiple outcomes
+  across all past signals, feeding into a future performance-tracking
+  document.
+
+15. DEVELOPER NOTES
+
+- Keep stop-loss and take-profit calculation methods modular and
+  swappable, since the trader has indicated interest in comparing
+  structural-based and volatility-based approaches over time.
+- Ensure R-multiple calculation logic is implemented once and reused
+  consistently everywhere it is displayed (chart lines, dashboard,
+  alerts) to avoid inconsistent risk figures appearing in different
+  parts of the system.
+
+16. ACCEPTANCE CRITERIA
+
+- Every approved signal receives complete, immediately available risk
+  framing (entry, stop, at least one target) at the moment of
+  confirmation.
+- R-multiple reporting is consistent across chart display, dashboard,
+  and alerts for the same signal at the same point in time.
+- Breakeven and other risk-state changes are represented as new,
+  clearly labeled states rather than retroactive edits.
+
+17. TESTING CHECKLIST
+
+- Verify stop-loss and take-profit calculations against the configured
+  method across a sample of historical signals.
+- Verify minimum/maximum stop distance safeguards activate correctly
+  in edge case conditions.
+- Verify live R-multiple tracking accurately reflects price movement
+  relative to entry and stop.
+- Verify breakeven state transitions occur correctly and are visually
+  distinct from the original risk framing.
+
+18. KNOWN LIMITATIONS
+
+- Any rule-based stop/target framework will occasionally produce
+  suboptimal risk framing in unusual market conditions; this is an
+  accepted tradeoff for consistency and rule-based discipline over
+  case-by-case discretionary adjustment.
+
+19. INTEGRATION REQUIREMENTS
+
+- Requires approved signal data from the Filter Engine (Document 05)
+  and, if using structural-based methods, zone data from the Market
+  Structure module (Document 03).
+- Output feeds the Dashboard (Document 06) and Alerts (Document 07).
+
+20. COMMON IMPLEMENTATION MISTAKES TO AVOID
+
+- Recalculating or silently shifting the original stop-loss/take-profit
+  levels after initial signal confirmation.
+- Presenting position sizing guidance as an automated execution
+  instruction rather than informational guidance.
+- Failing to safeguard against unreasonably tight or wide stops in
+  structural-based calculations.
+
+21. QUALITY ASSURANCE CHECKLIST
+
+- Risk framing figures match across all display surfaces (chart lines,
+  dashboard, alert messages) for the same signal.
+- R-multiple reporting remains mathematically consistent and accurate
+  throughout a signal's active lifecycle.
+- All risk-related language in the system clearly frames output as
+  guidance rather than execution instruction.

@@ -1,0 +1,152 @@
+AURIC SENTINEL
+Institutional Multi-Layer Trading Intelligence System
+DOCUMENT 00: PROJECT OVERVIEW
+================================================================
+
+1. PROJECT OBJECTIVE
+
+AURIC SENTINEL is envisioned as an institutional-grade, multi-layer market
+intelligence system intended for use primarily on XAUUSD (Gold) and XAGUSD
+(Silver), with secondary applicability to other liquid instruments. The
+system's purpose is to combine trend context, market structure analysis,
+signal generation, filtering logic, risk awareness, and visual reporting
+into a single cohesive tool that behaves consistently across timeframes
+and market conditions.
+
+The system is not intended to be a simple indicator. It is intended to
+behave like a layered decision-support framework, where each layer
+performs one clearly defined job and passes its conclusions to the next
+layer. The end result presented to the trader should feel like a concise
+institutional briefing rather than a cluttered chart full of unrelated
+signals.
+
+2. PURPOSE
+
+The purpose of this documentation set is to describe, in complete detail,
+what AURIC SENTINEL must do, why each component exists, when each
+behavior should activate, and how each module should conduct itself
+from the trader's point of view. This documentation exists so that a
+separate development effort (human or AI) can implement the system
+without requiring the original author to explain intent verbally.
+
+Every module must be described thoroughly enough that a competent
+Pine Script developer could build it correctly without needing to guess
+at edge cases, without needing to invent behavior that was not specified,
+and without needing to ask clarifying questions about trading philosophy.
+
+3. TARGET USER PROFILE
+
+The primary user is an independent discretionary and semi-systematic
+trader who:
+- Trades gold and silver on lower timeframes (M15/H1) using higher
+  timeframe (H4/D1) context for bias.
+- Has working knowledge of institutional trading concepts such as
+  liquidity, order blocks, change of character, and premium/discount
+  zones.
+- Prefers clear visual dashboards over raw numeric output.
+- Operates from Pakistan Standard Time (UTC+5) and expects all
+  timestamps to be displayed in that zone regardless of the exchange's
+  native timezone.
+- Values non-repainting, historically consistent signal behavior over
+  speculative "early" signals that may later disappear.
+
+4. HIGH-LEVEL SYSTEM PHILOSOPHY
+
+AURIC SENTINEL follows a top-down decision philosophy:
+- Establish directional bias first, using higher timeframe trend context.
+- Confirm that bias using market structure evidence (structure breaks,
+  liquidity behavior, structural shifts).
+- Only then look for an entry signal on the execution timeframe.
+- Filter that signal against volatility, session, and noise conditions
+  before it is considered valid.
+- Present the full decision chain to the trader visually, so the trader
+  understands WHY a signal fired, not just THAT it fired.
+- Never present a signal without also presenting the context that
+  justifies or invalidates it.
+
+The guiding principle across every module is transparency of reasoning.
+A trader using AURIC SENTINEL should be able to look at the chart and
+dashboard and reconstruct the system's logic without needing to open
+the settings panel.
+
+5. MODULE MAP
+
+The system is composed of the following functional modules, each
+described in its own dedicated document:
+
+- Core Architecture (structural foundation, data flow, module
+  communication rules)
+- EMA Trend Engine (multi-timeframe trend classification layer)
+- Market Structure (structure break detection, liquidity concepts,
+  premium/discount zones)
+- Signal Engine (entry trigger logic and signal lifecycle)
+- Filter Engine (noise reduction, session filtering, volatility
+  filtering)
+- Dashboard UI (visual reporting layer)
+- Alerts (notification and automation trigger layer)
+- Risk Management (position sizing guidance, stop/target framework)
+- Scanner Optimization (multi-symbol scanning behavior and performance)
+- Final Integration (how all modules combine into the finished product)
+
+6. NON-NEGOTIABLE DESIGN PRINCIPLES
+
+These principles apply across all modules and must not be violated by
+any individual module's design:
+
+- Non-repainting behavior is mandatory. Any value, label, or signal
+  that has been displayed to the trader on a confirmed bar must never
+  change retroactively.
+- All displayed time values must be shown in Pakistan Standard Time
+  (UTC+5), clearly labeled as such.
+- Every visual element must have a clearly defined purpose. Decorative
+  elements that do not convey decision-relevant information should be
+  avoided.
+- The system must degrade gracefully. If a higher timeframe data
+  request is unavailable or delayed, the system must clearly indicate
+  degraded confidence rather than silently failing or producing
+  misleading output.
+- The system must be understandable to the trader without requiring
+  memorization of internal thresholds. Plain-language labels are
+  preferred over raw numeric codes.
+
+7. OUT OF SCOPE
+
+The following are explicitly out of scope for AURIC SENTINEL and should
+not be designed into any module unless a future revision of this
+documentation states otherwise:
+- Fully automated order execution (the system informs; it does not
+  place trades).
+- Portfolio-level management across multiple unrelated instruments.
+- Fundamental or news-based analysis.
+- Machine learning or adaptive self-training components.
+
+8. SUCCESS CRITERIA FOR THE OVERALL PROJECT
+
+The project is considered successful when:
+- A trader can glance at the chart and dashboard and understand current
+  bias, structure context, active signal (if any), and risk framework
+  within a few seconds.
+- The system behaves identically when scrolled back in history as it
+  did when the signal originally formed (no repainting).
+- The system remains readable and non-overlapping on both large desktop
+  chart layouts and smaller mobile chart layouts.
+- All modules described in this documentation set integrate into a
+  single coherent script without contradictory logic between modules.
+
+9. DOCUMENT SET INDEX
+
+00_Project_Overview.txt (this document)
+01_Core_Architecture.txt
+02_EMA_Trend_Engine.txt
+03_Market_Structure.txt
+04_Signal_Engine.txt
+05_Filter_Engine.txt
+06_Dashboard_UI.txt
+07_Alerts.txt
+08_Risk_Management.txt
+09_Scanner_Optimization.txt
+10_Final_Integration.txt
+
+Each document in this set should be read in order, as later modules
+depend conceptually on decisions and definitions established in earlier
+modules.

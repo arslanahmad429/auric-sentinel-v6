@@ -1,0 +1,433 @@
+AURIC SENTINEL
+DOCUMENT 02: EMA TREND ENGINE
+================================================================
+
+1. PURPOSE
+
+The EMA Trend Engine is the module responsible for establishing
+directional bias. It answers a single question for the rest of the
+system: "What is the higher timeframe trend context right now, and how
+confident are we in that classification?" Every downstream module treats
+this module's output as the starting assumption for bias, to be
+confirmed or challenged by later layers, not re-derived from scratch.
+
+2. WHY THIS MODULE EXISTS
+
+Discretionary institutional-style trading places heavy emphasis on not
+fighting the higher timeframe trend. Without a dedicated trend context
+layer, a trading system risks generating signals that look attractive
+on a lower timeframe but are actually counter-trend traps relative to
+the broader market. This module exists to prevent that failure mode by
+giving every other module a consistent, single source of truth for
+"what is the dominant direction right now."
+
+3. FUNCTIONAL REQUIREMENTS
+
+- The module must classify trend direction using a ribbon or stack of
+  moving averages evaluated on a higher timeframe than the execution
+  chart.
+- The module must produce not just a direction (bullish, bearish,
+  neutral/transitional) but also a qualitative strength descriptor
+  (for example: strong, moderate, weak, or ranging) based on how
+  cleanly the moving averages are ordered and separated from one
+  another.
+- The module must detect and clearly flag "transitional" states where
+  the moving average stack is compressing, crossing, or reordering,
+  since these states carry different reliability than a cleanly
+  ordered trending stack.
+- The module must support user-selectable higher timeframe context
+  (for example, allowing the trader to choose H4, D1, or another
+  timeframe) rather than hardcoding a single timeframe.
+- The module must expose its conclusion in a way that both the
+  Dashboard and the Market Structure module can consume without
+  needing to reinterpret raw moving average values.
+
+4. NON-FUNCTIONAL REQUIREMENTS
+
+- Classification must be stable; the module should not flip its
+  direction classification on minor, insignificant price fluctuations.
+  Some form of hysteresis or confirmation delay concept should be
+  considered so that direction does not flicker bar to bar.
+- Calculation must be efficient enough to run across multiple symbols
+  simultaneously without significant performance degradation (see
+  Document 09).
+- The module must never use unconfirmed (still-forming) higher
+  timeframe candle data to finalize its classification for the current
+  execution bar.
+
+5. USER CONFIGURABLE SETTINGS
+
+- Higher timeframe selection for trend context.
+- Selection of which moving average lengths compose the ribbon/stack.
+- Sensitivity setting controlling how much separation between moving
+  averages is required before a trend is classified as "strong" versus
+  "moderate" versus "weak."
+- Option to display or hide the ribbon visually on the chart.
+- Option to choose between a simple two-average trend check and a
+  fuller multi-average ribbon for more nuanced classification.
+
+6. INPUT DESCRIPTION
+
+Primary input is price data (typically closing price, though the
+documentation should leave open the possibility of using a different
+price reference) sampled on the user-selected higher timeframe.
+Secondary input is the set of user-configured moving average lengths
+that define the ribbon.
+
+7. OUTPUT DESCRIPTION
+
+The module's output, consumed by other modules, consists of:
+- A directional classification (bullish / bearish / neutral).
+- A strength classification (strong / moderate / weak / transitional).
+- A boolean-style flag indicating whether the ribbon is currently in a
+  "compressed" or "crossing" state, signaling reduced reliability.
+- A value or descriptor suitable for direct display on the dashboard
+  (for example, a short label like "Bullish - Strong" or "Transitional").
+
+8. VISUAL BEHAVIOUR
+
+When enabled, the ribbon should be drawn on the chart using a color
+scheme that intuitively communicates direction (warmer colors for
+bearish, cooler colors for bullish, or the trader's preferred
+convention) and should visually thicken or otherwise emphasize itself
+when trend strength is high, and appear thinner or more muted when the
+trend is weak or transitional. The ribbon must never be drawn using
+unconfirmed higher timeframe data that could later redraw.
+
+9. SIGNAL BEHAVIOUR
+
+This module does not generate entry signals itself. It generates
+context that the Signal Engine (Document 04) will reference when
+deciding whether a candidate entry aligns with or contradicts the
+higher timeframe trend.
+
+10. TRADING PHILOSOPHY BEHIND THIS MODULE
+
+The underlying philosophy is that trend alignment increases the
+probability of favorable trade outcomes, and that trading against a
+strong, cleanly ordered higher timeframe trend should require
+significantly more justification than trading with it. This module
+exists to make that justification bar explicit and visible rather than
+left to the trader's memory or gut feeling.
+
+11. DECISION PROCESS
+
+The module should evaluate, on each confirmed higher timeframe bar:
+1. The relative ordering of the configured moving averages.
+2. The degree of separation between them (as a proxy for trend
+   conviction).
+3. Whether the ordering has recently changed (indicating a potential
+   transition).
+4. Whether the current ordering has persisted long enough to be
+   considered a reliable classification rather than noise.
+
+12. EDGE CASES
+
+- Ranging markets where moving averages are tightly interwoven with no
+  clear order: must be classified as "neutral/ranging," not forced into
+  a false bullish or bearish label.
+- Sudden volatility spikes causing brief, temporary reordering of
+  averages: the module should avoid immediately flipping its
+  classification on a single bar and should require some persistence
+  before confirming a new direction.
+- Newly listed symbols or symbols with insufficient historical data to
+  populate the longest moving average: the module must clearly report
+  "insufficient data" rather than a misleading default classification.
+- Higher timeframe data temporarily unavailable (for example, due to
+  data feed issues): module must report "undetermined" rather than
+  reusing stale data silently.
+
+13. PERFORMANCE EXPECTATIONS
+
+The trend classification should update promptly at the close of each
+higher timeframe bar and remain completely static between those closes,
+so the trader can rely on it as a stable reference throughout the
+lower timeframe bars that occur within one higher timeframe period.
+
+14. FUTURE EXPANSION IDEAS
+
+- Optional secondary confirmation timeframe (for example, requiring
+  both H4 and D1 to agree before classifying "strong" trend).
+- Optional slope-based strength measurement in addition to separation-
+  based measurement.
+
+15. DEVELOPER NOTES
+
+- Keep the classification logic isolated from display logic so that
+  the underlying classification could later be reused by a different
+  visual style without rewriting the core logic.
+- Ensure classification labels are consistent in naming across this
+  module, the Dashboard module, and the Alerts module, so the same
+  trend state is always described with the same words everywhere in
+  the system.
+
+16. ACCEPTANCE CRITERIA
+
+- Trend classification does not change retroactively on historical
+  bars once confirmed.
+- Classification responds only to confirmed higher timeframe closes.
+- Strength classification meaningfully distinguishes between cleanly
+  trending and choppy/transitional conditions in visual backtesting.
+
+17. TESTING CHECKLIST
+
+- Test on a clearly trending historical period and confirm consistent
+  "strong" classification throughout.
+- Test on a clearly ranging historical period and confirm "neutral/
+  ranging" classification rather than false directional signals.
+- Test with higher timeframe data temporarily simulated as missing and
+  confirm graceful "undetermined" reporting.
+
+18. KNOWN LIMITATIONS
+
+- Any moving-average-based trend classification will inherently lag
+  real-time price action to some degree; this is an accepted tradeoff
+  for stability over immediacy.
+
+19. INTEGRATION REQUIREMENTS
+
+- Output must be consumable directly by the Market Structure module
+  (Document 03), the Signal Engine (Document 04), and the Dashboard
+  (Document 06) without requiring those modules to reinterpret raw
+  moving average values themselves.
+
+20. COMMON IMPLEMENTATION MISTAKES TO AVOID
+
+- Using unconfirmed/live higher timeframe bar data, which causes
+  repainting.
+- Flipping classification too eagerly on minor noise, undermining
+  trader confidence in the module.
+- Hardcoding the higher timeframe instead of making it user
+  configurable.
+
+21. QUALITY ASSURANCE CHECKLIST
+
+- Direction and strength labels are human-readable and unambiguous.
+- No repainting confirmed on historical review.
+- Performance remains acceptable when the module is run across multiple
+  symbols simultaneously.
+
+22. EXTENDED BEHAVIOURAL SPECIFICATIONS
+
+This section expands the EMA Trend Engine beyond a basic directional
+classifier into a fully detailed trend-behaviour analysis layer. Every
+sub-topic below describes required behaviour, expected output, and
+trading relevance only. No implementation method, formula, or code is
+described; a developer must independently determine how to achieve the
+described behaviour.
+
+22.1 EMA 50 and EMA 200 Interaction
+
+The module must treat the relationship between a faster reference
+average (conceptually similar to a 50-period average) and a slower
+reference average (conceptually similar to a 200-period average) as the
+primary anchor for long-term directional bias, independent of the full
+ribbon. The relative position of these two references (fast above slow,
+or slow above fast) must be reported as the "primary bias," while the
+full ribbon (Document 02, Section 3) refines that primary bias into a
+strength classification. The module must also report the general
+distance behaviour between these two references over time — whether
+they are converging (narrowing gap), diverging (widening gap), or
+holding steady — since this behaviour is treated as an early indicator
+of trend maturity or trend change.
+
+22.2 Dynamic Trend Strength
+
+Trend strength must not be a static, one-time label. It must be treated
+as a continuously updating rating that responds to changing ribbon
+behaviour bar by bar (on confirmed higher timeframe bars only). Dynamic
+Trend Strength must account for: current ribbon ordering, current
+separation between averages, the trend's persistence duration (how long
+the current classification has held), and recent acceleration or
+deceleration behaviour (Sections 22.6 and 22.7). The output must be
+expressed as a rating the trader can act on immediately (for example,
+a small set of plain-language tiers), and the rating must be capable of
+moving up or down between tiers as conditions evolve, without ever
+retroactively altering a previously confirmed historical rating.
+
+22.3 EMA Ribbon Behaviour
+
+Beyond simple ordering, the module must characterize the overall
+"shape" of the ribbon as a qualitative behavioural state, distinguishing
+at minimum between: a cleanly fanned, well-ordered ribbon (high
+conviction), a loosely ordered ribbon with minor overlaps (moderate
+conviction), and a tangled or interwoven ribbon with no clear order
+(low conviction / ranging). This ribbon-shape state must be reported
+alongside the directional classification so the trader can distinguish
+"trending and orderly" from "trending but disorderly."
+
+22.4 Ribbon Expansion
+
+Ribbon Expansion refers to the condition where the individual averages
+within the ribbon are visibly spreading further apart from one another
+over successive confirmed bars. This must be detected and reported as
+a distinct behavioural flag, since expansion is treated as evidence of
+strengthening trend conviction and increasing directional consensus
+across timeframe-averaged price levels.
+
+22.5 Ribbon Compression
+
+Ribbon Compression refers to the opposite condition, where the
+individual averages are visibly converging toward one another over
+successive confirmed bars. This must be detected and reported as a
+distinct behavioural flag, since compression is treated as an early
+warning of weakening trend conviction, potential consolidation, or an
+approaching transitional/reversal phase, even before the ribbon
+ordering itself has changed.
+
+22.6 Trend Acceleration
+
+Trend Acceleration describes a condition where price is moving away
+from the ribbon, or the ribbon's slope is steepening, at an increasing
+rate over recent confirmed bars, in the direction of the current trend.
+This must be reported as a distinct behavioural flag distinguishable
+from simple trend strength, since an accelerating trend carries
+different tactical implications (for example, potential for
+overextension) than a steady, non-accelerating trend.
+
+22.7 Trend Deceleration
+
+Trend Deceleration describes the opposite condition: the rate of
+movement in the direction of the trend is slowing on recent confirmed
+bars, even though the directional classification itself has not yet
+changed. This must be flagged distinctly, as it is treated as an
+early-warning behavioural signal that often precedes either a healthy
+pullback or a more significant trend weakening event.
+
+22.8 Pullback Detection
+
+The module must detect and flag when price is retracing against the
+prevailing higher timeframe trend direction without invalidating that
+trend's overall classification (that is, a pullback occurring within
+a still-intact trend, as opposed to a full reversal). This flag exists
+to give downstream modules, especially the Signal Engine (Document 04),
+a clear behavioural marker distinguishing "healthy retracement within
+trend" from "trend breakdown."
+
+22.9 EMA Rejection Detection
+
+The module must detect and flag conditions where price approaches one
+of the ribbon's averages during a pullback and is subsequently rejected
+back in the direction of the prevailing trend (that is, the average
+acted as dynamic support or resistance). This must be reported as a
+distinct behavioural event, since EMA rejection behaviour is commonly
+used as trend-continuation confirmation.
+
+22.10 Healthy Trend vs Weak Trend
+
+The module must distinguish between a "healthy trend" — characterized
+by consistent ordering, adequate separation, and orderly pullback/
+rejection behaviour — and a "weak trend" — characterized by correct
+directional ordering but poor separation, frequent minor disordering,
+or an absence of clean pullback/rejection behaviour. This distinction
+must be surfaced as an explicit qualitative label, separate from the
+core strength rating described in Document 02, Section 3, so the trader
+can understand not just "how strong" but "how reliable" the current
+trend classification is.
+
+22.11 Strong Bullish Trend / Strong Bearish Trend
+
+The module must define clear, consistent qualifying conditions for
+labeling the current state as a Strong Bullish Trend or Strong Bearish
+Trend, incorporating: correct ribbon ordering, wide and/or expanding
+separation, healthy trend characteristics (Section 22.10), and absence
+of active compression or deceleration flags. These labels represent the
+highest-conviction trend states the module can report and should be
+reserved for conditions that genuinely meet all qualifying behavioural
+criteria, not merely correct directional ordering alone.
+
+22.12 Early Trend Weakness
+
+The module must define a distinct "Early Trend Weakness" state,
+triggered by the presence of compression and/or deceleration flags
+occurring while the directional classification itself has not yet
+changed. This state exists to give the trader advance behavioural
+warning before a full trend classification change occurs, allowing
+more cautious interpretation of new trend-aligned signals during this
+period.
+
+22.13 Trend Exhaustion
+
+Trend Exhaustion describes a distinct, more advanced warning state than
+Early Trend Weakness, characterized by a combination of: prolonged
+trend duration, strong prior acceleration followed by pronounced
+deceleration, and increasing ribbon compression, all occurring
+together. This state must be reported distinctly, since it represents
+meaningfully elevated risk of an imminent trend change and should
+influence downstream signal confidence more heavily than Early Trend
+Weakness alone.
+
+22.14 Trend Continuation Conditions
+
+The module must define the qualitative conditions under which the
+current trend should be considered likely to continue: healthy trend
+characteristics, absence of exhaustion or compression flags, and
+orderly pullback/rejection behaviour consistent with prior established
+trend behaviour on the same instrument and timeframe.
+
+22.15 Trend Failure Conditions
+
+The module must define the qualitative conditions under which the
+current trend should be considered to have failed or be at high risk of
+failing: sustained compression, loss of clean ribbon ordering, repeated
+failed rejection attempts (pullbacks that do not hold at the ribbon),
+and eventual reordering of the ribbon itself. Trend failure must be
+reported as a distinct event, separate from a simple change in
+directional classification, so the trader can distinguish "the trend
+classification changed" from "the trend actively broke down."
+
+22.16 Multi-Timeframe EMA Alignment
+
+The module must support evaluating ribbon ordering and strength across
+more than one higher timeframe simultaneously (for example, both H4 and
+D1), and must report an explicit alignment status describing whether
+these timeframes agree, partially agree, or conflict. Full alignment
+across multiple timeframes must be treated as a higher-conviction
+condition than single-timeframe classification alone, and this
+alignment status must be made available to downstream modules as an
+optional additional confidence input.
+
+22.17 EMA Distance Analysis
+
+The module must analyze the distance between price and the ribbon, and
+between individual averages within the ribbon, relative to the
+instrument's own recent historical distance behaviour (not an absolute
+fixed value), in order to contextualize whether current separation or
+price extension is typical, elevated, or extreme for that instrument's
+current volatility regime. This analysis feeds into acceleration,
+exhaustion, and strength classifications described above.
+
+22.18 False EMA Cross Filtering
+
+The module must define behaviour to reduce sensitivity to brief,
+insignificant crossovers between averages that do not represent a
+genuine change in trend (for example, a single-bar wick-driven cross
+that immediately reverses). A minimum persistence or confirmation
+requirement must be applied before any crossover is treated as a
+genuine reordering event for classification purposes, consistent with
+the stability requirement already defined in Document 02, Section 4.
+
+22.19 Trend Confidence Rating
+
+The module must synthesize all applicable behavioural flags described
+in this section (ribbon shape, expansion/compression, acceleration/
+deceleration, healthy/weak classification, exhaustion, multi-timeframe
+alignment) into a single overall Trend Confidence Rating, expressed in
+plain language, that downstream modules — particularly the Signal
+Engine (Document 04) and Dashboard (Document 06) — can consume as a
+unified measure of how much weight the current trend context should
+carry in the overall decision process. This rating must update on every
+confirmed higher timeframe bar and must never be based on unconfirmed
+data.
+
+22.20 Integration Notes for Extended Behaviour
+
+All behavioural flags and ratings described in this section are
+additive to, and must remain consistent with, the core directional and
+strength classification described in Sections 3 through 21 of this
+document. No extended behavioural flag may contradict the core
+classification (for example, a "Strong Bullish Trend" label must never
+co-occur with a bearish primary bias). Any apparent conflict between an
+extended behavioural flag and the core classification must be treated
+as a defect to be resolved during development, not as acceptable
+nuance.

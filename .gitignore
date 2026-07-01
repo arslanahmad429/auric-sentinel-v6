@@ -1,0 +1,17 @@
+# Python Virtual Environment
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node Dependencies & Build Artifacts
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+.eslintcache
+
+# System Files
+.DS_Store
+Thumbs.db
+*.log

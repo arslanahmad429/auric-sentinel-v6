@@ -1,0 +1,184 @@
+AURIC SENTINEL
+DOCUMENT 01: CORE ARCHITECTURE
+================================================================
+
+1. PURPOSE OF THIS DOCUMENT
+
+This document defines the structural foundation of AURIC SENTINEL: how
+the system is organized internally, how modules communicate with one
+another, what data flows between them, and what architectural rules
+must be respected regardless of which module is being implemented.
+This document does not describe any single feature in depth; it
+describes the skeleton that holds every feature together.
+
+2. ARCHITECTURAL OBJECTIVE
+
+The system must be built as a layered pipeline rather than a single
+monolithic block of logic. Each layer consumes the output of the
+previous layer and produces a clearly defined output for the next
+layer. This separation exists so that any single module can be revised,
+replaced, or debugged without requiring changes to unrelated modules.
+
+3. LAYER SEQUENCE
+
+The system must be conceptually organized into the following ordered
+layers:
+
+Layer 1 - Data Acquisition: Gathers price data from the current chart
+timeframe and any required higher timeframes.
+
+Layer 2 - Trend Context (EMA Trend Engine): Establishes directional
+bias using higher timeframe trend classification.
+
+Layer 3 - Structural Context (Market Structure): Confirms or challenges
+the trend bias using structure break and liquidity concepts.
+
+Layer 4 - Signal Generation (Signal Engine): Identifies specific
+execution-timeframe conditions that qualify as a potential entry
+trigger.
+
+Layer 5 - Filtering (Filter Engine): Evaluates each candidate signal
+against session, volatility, and noise conditions, and either approves
+or rejects it.
+
+Layer 6 - Risk Framing (Risk Management): Attaches stop-loss, target,
+and position-sizing guidance to any approved signal.
+
+Layer 7 - Presentation (Dashboard UI): Converts the internal state of
+all prior layers into a visual report for the trader.
+
+Layer 8 - Notification (Alerts): Converts approved, finalized signals
+into outbound alert messages.
+
+Each layer must only pass forward information that has been finalized
+for the current confirmed bar. No layer may pass forward provisional or
+in-progress information that could later change.
+
+4. MODULE COMMUNICATION RULES
+
+- Modules must communicate through clearly named, well-documented
+  values rather than implicit shared state. Any value passed from one
+  module to another should have an obvious, self-explanatory meaning.
+- A downstream module must never need to re-derive or guess information
+  that an upstream module has already calculated. For example, the
+  Signal Engine must not need to independently recalculate trend
+  direction; it must receive that conclusion from the EMA Trend Engine.
+- No module should reach backward into an earlier module's internal
+  working values. Only the finalized output of a module should be
+  consumed by later modules.
+- If an upstream module cannot produce a confident conclusion (for
+  example, higher timeframe data is not yet available), it must pass
+  forward an explicit "undetermined" state rather than a default
+  guess disguised as a real conclusion.
+
+5. DATA FLOW DIRECTION
+
+Data flows strictly forward through the layer sequence described in
+Section 3. There is no architectural provision for a downstream layer
+to influence an upstream layer's conclusion within the same bar's
+evaluation cycle. Any apparent feedback (for example, risk management
+influencing whether a signal is displayed at all) must be modeled as a
+separate, later-stage filter rather than a loop back into signal logic.
+
+6. TIMEFRAME HANDLING PHILOSOPHY
+
+The system operates across at least two timeframes conceptually: a
+higher timeframe used for bias and context, and the chart's native
+timeframe used for execution-level signal detection. The architecture
+must clearly separate "context timeframe" logic from "execution
+timeframe" logic so that a developer never confuses which timeframe a
+given calculation is meant to represent.
+
+Any reference to higher timeframe data must be treated as
+confirmed-bar-only. Understanding that higher timeframe candles close
+less frequently than the execution timeframe is essential; the
+architecture must ensure that partially formed higher timeframe candles
+never influence a decision that gets displayed to the trader as final.
+
+7. STATE PERSISTENCE PHILOSOPHY
+
+Certain modules (notably Signal Engine and Market Structure) require
+memory of past events - for example, "has a structure break already
+been acknowledged since the last signal" or "what was the most recent
+confirmed trend direction." The architecture must support persistent
+state that carries forward from bar to bar, but that state must only
+update on confirmed bars, never on in-progress bars, to preserve
+non-repainting behavior.
+
+8. CONFIGURATION PHILOSOPHY
+
+All user-configurable settings across all modules must be logically
+grouped so that a trader adjusting the system's behavior can locate
+related settings together (for example, all EMA-related settings grouped
+under one heading, all dashboard-related settings grouped under
+another). The architecture must anticipate a single organized settings
+panel rather than settings scattered without grouping.
+
+9. PERFORMANCE ARCHITECTURE
+
+Because this system is intended to also support multi-symbol scanning
+(see Document 09), the architecture must be designed with computational
+efficiency in mind from the start. Expensive calculations should be
+performed once per confirmed bar and reused by any module that needs
+them, rather than being recalculated redundantly inside multiple
+modules.
+
+10. ERROR AND EDGE CASE HANDLING PHILOSOPHY
+
+The architecture must anticipate the following categories of edge case
+at a structural level, with each individual module document providing
+specifics:
+- Insufficient historical data on a newly listed or thinly traded
+  symbol.
+- Higher timeframe data temporarily unavailable.
+- Extremely low volatility periods where structure and signal logic
+  may produce ambiguous results.
+- Session boundaries and market holidays affecting expected data
+  continuity.
+
+Each module must define its own graceful degradation behavior, but the
+architecture must ensure that a failure or ambiguous state in one
+module cannot silently corrupt the output of another module.
+
+11. DEVELOPER NOTES
+
+- Build and test each layer in isolation before integrating it with the
+  next layer.
+- When in doubt about whether two pieces of logic belong in the same
+  module or separate modules, prefer separation. It is architecturally
+  safer to have too many small, well-defined modules than a few large
+  modules with blurred responsibilities.
+- Document any deviation from this architecture during implementation,
+  since later modules are written assuming this structure is respected.
+
+12. ACCEPTANCE CRITERIA FOR THIS LAYER
+
+- Every module's output can be traced to a single, clearly named source.
+- No module recalculates a conclusion that another module has already
+  finalized.
+- The system can have any single module disabled (via settings) without
+  causing errors in other modules, though the disabled module's
+  contribution to the dashboard should be clearly marked as inactive.
+
+13. TESTING CHECKLIST
+
+- Verify that disabling higher timeframe context does not crash
+  execution-timeframe modules.
+- Verify that scrolling back through history does not change any
+  previously confirmed module output.
+- Verify that all inter-module values are logically named and
+  traceable without needing to inspect internal calculations.
+
+14. KNOWN LIMITATIONS
+
+- A strictly layered architecture trades some flexibility for
+  predictability; modules cannot dynamically renegotiate priority with
+  one another. This is an intentional tradeoff in favor of consistent,
+  explainable behavior.
+
+15. FUTURE EXPANSION CONSIDERATIONS
+
+- The layer sequence should be extensible enough to allow a future
+  additional context layer (for example, an intermarket correlation
+  layer) to be inserted between Layer 3 and Layer 4 without requiring a
+  rewrite of downstream modules.

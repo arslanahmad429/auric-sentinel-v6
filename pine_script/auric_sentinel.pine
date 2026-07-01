@@ -1,0 +1,342 @@
+//@version=6
+indicator("AURIC SENTINEL - Institutional Multi-Layer Trading Intelligence", overlay=true, max_boxes_count=300, max_lines_count=300, max_labels_count=300)
+
+// =====================================================================
+// 1. INPUT GROUPS & CONFIGURATION
+// =====================================================================
+// EMA Settings
+gp_ema = "EMA Ribbon Settings"
+htf_timeframe = input.timeframe("240", "Higher Timeframe Context", group=gp_ema)
+ema_len1 = input.int(20, "Fast EMA Length", group=gp_ema)
+ema_len2 = input.int(50, "Medium EMA Length", group=gp_ema)
+ema_len3 = input.int(100, "Slow EMA Length", group=gp_ema)
+ema_len4 = input.int(200, "Baseline EMA Length", group=gp_ema)
+show_ribbon = input.bool(true, "Show EMA Ribbon", group=gp_ema)
+
+// Market Structure Settings
+gp_struct = "Market Structure Settings"
+swing_left = input.int(5, "Swing Left Bars", group=gp_struct, minval=2)
+swing_right = input.int(5, "Swing Right Bars", group=gp_struct, minval=2)
+show_obs = input.bool(true, "Show Order Blocks", group=gp_struct)
+max_obs = input.int(5, "Max Active OBs to Display", group=gp_struct, minval=1, maxval=10)
+ob_rule = input.string("Close", "OB Invalidation Rule", options=["Close", "Wick"], group=gp_struct)
+show_prem_disc = input.bool(true, "Show Premium/Discount Zone", group=gp_struct)
+
+// Filter Settings
+gp_filter = "Filter Settings (PST UTC+5)"
+enable_session = input.bool(true, "Enable Session Filter", group=gp_filter)
+london_sess = input.string("1300-2200", "London Session (PST)", group=gp_filter)
+ny_sess = input.string("1800-0300", "New York Session (PST)", group=gp_filter)
+enable_vol = input.bool(true, "Enable Volatility Filter", group=gp_filter)
+vol_lookback = input.int(20, "Volatility Lookback Period", group=gp_filter)
+min_vol_ratio = input.float(0.2, "Min Volatility Ratio", group=gp_filter)
+max_vol_ratio = input.float(2.5, "Max Volatility Ratio", group=gp_filter)
+
+// Risk Management Settings
+gp_risk = "Risk Management Settings"
+risk_mode = input.string("Fixed R", "Take Profit Method", options=["Fixed R", "Structure"], group=gp_risk)
+tp1_mult = input.float(1.5, "TP1 Multiple (R)", group=gp_risk)
+tp2_mult = input.float(3.0, "TP2 Multiple (R)", group=gp_risk)
+tp3_mult = input.float(5.0, "TP3 Multiple (R)", group=gp_risk)
+be_mult = input.float(1.5, "Breakeven Trigger (R)", group=gp_risk)
+account_size = input.float(10000.0, "Account Size ($)", group=gp_risk)
+risk_pct = input.float(1.0, "Risk Percentage per Trade (%)", group=gp_risk)
+
+// UI Settings
+gp_ui = "Dashboard UI Settings"
+db_pos = input.string("Top Right", "Dashboard Position", options=["Top Right", "Bottom Right", "Top Left", "Bottom Left"], group=gp_ui)
+db_size = input.string("Normal", "Dashboard Size", options=["Small", "Normal", "Large"], group=gp_ui)
+db_theme = input.string("Dark", "Dashboard Theme", options=["Dark", "Light"], group=gp_ui)
+
+// =====================================================================
+// 2. DATA ACQUISITION & HTF CONTEXT
+// =====================================================================
+// Fetch HTF EMAs to avoid repainting - use barmerge.lookahead_off
+[htf_ema50, htf_ema200, htf_open, htf_high, htf_low, htf_close] = request.security(syminfo.tickerid, htf_timeframe, [ta.ema(close, ema_len2), ta.ema(close, ema_len4), open, high, low, close], barmerge.gaps_off, barmerge.lookahead_off)
+
+// Local EMAs
+loc_ema20 = ta.ema(close, ema_len1)
+loc_ema50 = ta.ema(close, ema_len2)
+loc_ema100 = ta.ema(close, ema_len3)
+loc_ema200 = ta.ema(close, ema_len4)
+
+// Draw Ribbon
+plot(show_ribbon ? loc_ema20 : na, "EMA 20", color=color.new(color.cyan, 30))
+plot(show_ribbon ? loc_ema50 : na, "EMA 50", color=color.new(color.blue, 45))
+plot(show_ribbon ? loc_ema100 : na, "EMA 100", color=color.new(color.orange, 60))
+plot(show_ribbon ? loc_ema200 : na, "EMA 200", color=color.new(color.red, 75))
+
+// =====================================================================
+// 3. TREND ENGINE ANALYSIS
+// =====================================================================
+// Primary Bias
+bool is_bullish_bias = htf_ema50 > htf_ema200
+bool is_bearish_bias = htf_ema50 < htf_ema200
+
+// Ribbon Shape/State
+bool is_fanned_bullish = loc_ema20 > loc_ema50 and loc_ema50 > loc_ema100 and loc_ema100 > loc_ema200
+bool is_fanned_bearish = loc_ema20 < loc_ema50 and loc_ema50 < loc_ema100 and loc_ema100 < loc_ema200
+
+// Compression / Expansion (based on sum of absolute distances)
+float dist_curr = math.abs(loc_ema20 - loc_ema50) + math.abs(loc_ema50 - loc_ema100) + math.abs(loc_ema100 - loc_ema200)
+float dist_prev1 = math.abs(loc_ema20[1] - loc_ema50[1]) + math.abs(loc_ema50[1] - loc_ema100[1]) + math.abs(loc_ema100[1] - loc_ema200[1])
+float dist_prev2 = math.abs(loc_ema20[2] - loc_ema50[2]) + math.abs(loc_ema50[2] - loc_ema100[2]) + math.abs(loc_ema100[2] - loc_ema200[2])
+
+bool ribbon_expansion = dist_curr > dist_prev1 and dist_prev1 > dist_prev2
+bool ribbon_compression = dist_curr < dist_prev1 and dist_prev1 < dist_prev2
+
+// Dynamic Trend Confidence
+string trend_conf = "Neutral"
+if is_bullish_bias
+    if is_fanned_bullish and ribbon_expansion
+        trend_conf := "Strong Bullish"
+    else if ribbon_compression
+        trend_conf := "Early Bullish Weakness"
+    else
+        trend_conf := "Moderate Bullish"
+else if is_bearish_bias
+    if is_fanned_bearish and ribbon_expansion
+        trend_conf := "Strong Bearish"
+    else if ribbon_compression
+        trend_conf := "Early Bearish Weakness"
+    else
+        trend_conf := "Moderate Bearish"
+
+// =====================================================================
+// 4. MARKET STRUCTURE ENGINE (NON-REPAINTING)
+// =====================================================================
+// Find Swings (Pivots) - ta.pivothigh/low confirm only after 'swing_right' bars
+float p_high = ta.pivothigh(high, swing_left, swing_right)
+float p_low = ta.pivotlow(low, swing_left, swing_right)
+
+// Keep track of latest swings
+var float last_sh_price = na
+var int last_sh_bar = na
+var float last_sl_price = na
+var int last_sl_bar = na
+
+var bool last_sh_broken = false
+var bool last_sl_broken = false
+
+if not na(p_high)
+    last_sh_price := p_high
+    last_sh_bar := bar_index - swing_right
+    last_sh_broken := false
+if not na(p_low)
+    last_sl_price := p_low
+    last_sl_bar := bar_index - swing_right
+    last_sl_broken := false
+
+// Draw Swings
+plotshape(not na(p_high) ? high[swing_right] : na, "Swing High", shape.labeldown, location.abovebar, color.red, offset=-swing_right, size=size.tiny)
+plotshape(not na(p_low) ? low[swing_right] : na, "Swing Low", shape.labelup, location.belowbar, color.green, offset=-swing_right, size=size.tiny)
+
+// BOS and CHoCH Detection
+bool bullish_break = false
+bool bearish_break = false
+string struct_event = "None"
+
+// Check close breaking confirmed swing high/low
+if not na(last_sh_price) and not last_sh_broken and close > last_sh_price
+    last_sh_broken := true
+    bullish_break := true
+    struct_event := is_bullish_bias ? "BOS" : "CHoCH"
+    line.new(last_sh_bar, last_sh_price, bar_index, last_sh_price, color=color.cyan, width=1, style=line.style_dashed)
+    label.new(bar_index, last_sh_price, struct_event + " ↗", color=color.cyan, textcolor=color.black, size=size.small, style=label.style_label_lower_right)
+
+if not na(last_sl_price) and not last_sl_broken and close < last_sl_price
+    last_sl_broken := true
+    bearish_break := true
+    struct_event := is_bearish_bias ? "BOS" : "CHoCH"
+    line.new(last_sl_bar, last_sl_price, bar_index, last_sl_price, color=color.orange, width=1, style=line.style_dashed)
+    label.new(bar_index, last_sl_price, struct_event + " ↘", color=color.orange, textcolor=color.black, size=size.small, style=label.style_label_upper_right)
+
+// Order Block (OB) Creation
+var box[] bull_ob_boxes = array.new_box()
+var box[] bear_ob_boxes = array.new_box()
+
+if bullish_break
+    // Find last down candle preceding breakout
+    int ob_idx = 1
+    for k = 1 to 5
+        if close[k] < open[k]
+            ob_idx := k
+            break
+    if show_obs
+        box ob = box.new(left=bar_index - ob_idx, top=high[ob_idx], right=bar_index, bottom=low[ob_idx], bgcolor=color.new(color.green, 90), border_color=color.green, border_style=line.style_solid)
+        array.push(bull_ob_boxes, ob)
+        if array.size(bull_ob_boxes) > max_obs
+            box.delete(array.shift(bull_ob_boxes))
+
+if bearish_break
+    // Find last up candle preceding breakdown
+    int ob_idx = 1
+    for k = 1 to 5
+        if close[k] > open[k]
+            ob_idx := k
+            break
+    if show_obs
+        box ob = box.new(left=bar_index - ob_idx, top=high[ob_idx], right=bar_index, bottom=low[ob_idx], bgcolor=color.new(color.red, 90), border_color=color.red, border_style=line.style_solid)
+        array.push(bear_ob_boxes, ob)
+        if array.size(bear_ob_boxes) > max_obs
+            box.delete(array.shift(bear_ob_boxes))
+
+// Invalidate/Mitigate OBs
+if array.size(bull_ob_boxes) > 0
+    for k = 0 to array.size(bull_ob_boxes) - 1
+        box ob = array.get(bull_ob_boxes, k)
+        float top = box.get_top(ob)
+        float bottom = box.get_bottom(ob)
+        float test_val = (ob_rule == "Close") ? close : low
+        if test_val < bottom
+            box.set_bgcolor(ob, color.new(color.gray, 95))
+            box.set_border_color(ob, color.gray)
+            box.set_border_style(ob, line.style_dotted)
+
+if array.size(bear_ob_boxes) > 0
+    for k = 0 to array.size(bear_ob_boxes) - 1
+        box ob = array.get(bear_ob_boxes, k)
+        float top = box.get_top(ob)
+        float bottom = box.get_bottom(ob)
+        float test_val = (ob_rule == "Close") ? close : high
+        if test_val > top
+            box.set_bgcolor(ob, color.new(color.gray, 95))
+            box.set_border_color(ob, color.gray)
+            box.set_border_style(ob, line.style_dotted)
+
+// Premium/Discount Zone calculation
+float range_high = ta.highest(high, 100)
+float range_low = ta.lowest(low, 100)
+float range_eq = (range_high + range_low) / 2.0
+
+string zone_desc = "Equilibrium"
+if close > range_eq
+    zone_desc := "Premium"
+else
+    zone_desc := "Discount"
+
+// =====================================================================
+// 5. FILTER ENGINE
+// =====================================================================
+// Session Check (PST Time zone UTC+5)
+// Check if current time matches London/NY sessions
+int current_hour = hour(time, "GMT+5")
+int current_minute = minute(time, "GMT+5")
+int time_val = current_hour * 100 + current_minute
+
+bool is_london = (time_val >= 1300 and time_val <= 2200)
+bool is_ny = (time_val >= 1800 or time_val <= 300)
+bool session_ok = not enable_session or (is_london or is_ny)
+
+// Volatility Check (ATR ratio)
+float atr_val = ta.atr(14)
+float atr_base = ta.sma(atr_val, vol_lookback * 5)
+float vol_ratio = atr_val / atr_baseline
+bool vol_ok = not enable_vol or (vol_ratio >= min_vol_ratio and vol_ratio <= max_vol_ratio)
+
+// =====================================================================
+// 6. SIGNAL ENGINE & RISK FRAMING
+// =====================================================================
+// Rejection Candle check
+float candle_range = high - low
+float lower_wick = math.min(open, close) - low
+float upper_wick = high - math.max(open, close)
+
+bool is_bull_rejection = candle_range > 0 and (lower_wick / candle_range) >= 0.35
+bool is_bear_rejection = candle_range > 0 and (upper_wick / candle_range) >= 0.35
+
+// Pullback on execution timeframe
+bool etf_pullback_bull = close < loc_ema20 and close > loc_ema200
+bool etf_pullback_bear = close > loc_ema20 and close < loc_ema200
+
+// Setup Signals
+bool buy_signal = is_bullish_bias and etf_pullback_bull and is_bull_rejection and session_ok and vol_ok
+bool sell_signal = is_bearish_bias and etf_pullback_bear and is_bear_rejection and session_ok and vol_ok
+
+// Cooldown tracker
+var int last_signal_bar = 0
+bool cooldown_ok = (bar_index - last_signal_bar) > 10
+
+bool confirmed_buy = buy_signal and cooldown_ok
+bool confirmed_sell = sell_signal and cooldown_ok
+
+if confirmed_buy or confirmed_sell
+    last_signal_bar := bar_index
+
+// Plot Signal Markers
+plotshape(confirmed_buy, "BUY Signal", shape.triangleup, location.belowbar, color.green, size=size.small, text="BUY")
+plotshape(confirmed_sell, "SELL Signal", shape.triangledown, location.abovebar, color.red, size=size.small, text="SELL")
+
+// Trade Framing Lines
+var line sl_line = na
+var line tp1_line = na
+var line tp2_line = na
+var line tp3_line = na
+
+if confirmed_buy
+    float stop_dist = ta.atr(14) * 2.0
+    float sl = close - stop_dist
+    float tp1 = close + (stop_dist * tp1_mult)
+    float tp2 = close + (stop_dist * tp2_mult)
+    float tp3 = close + (stop_dist * tp3_mult)
+    
+    sl_line := line.new(bar_index, sl, bar_index + 20, sl, color=color.red, width=1, style=line.style_solid)
+    tp1_line := line.new(bar_index, tp1, bar_index + 20, tp1, color=color.green, width=1, style=line.style_dashed)
+    tp2_line := line.new(bar_index, tp2, bar_index + 20, tp2, color=color.green, width=1, style=line.style_dashed)
+    tp3_line := line.new(bar_index, tp3, bar_index + 20, tp3, color=color.green, width=2, style=line.style_solid)
+
+if confirmed_sell
+    float stop_dist = ta.atr(14) * 2.0
+    float sl = close + stop_dist
+    float tp1 = close - (stop_dist * tp1_mult)
+    float tp2 = close - (stop_dist * tp2_mult)
+    float tp3 = close - (stop_dist * tp3_mult)
+    
+    sl_line := line.new(bar_index, sl, bar_index + 20, sl, color=color.red, width=1, style=line.style_solid)
+    tp1_line := line.new(bar_index, tp1, bar_index + 20, tp1, color=color.green, width=1, style=line.style_dashed)
+    tp2_line := line.new(bar_index, tp2, bar_index + 20, tp2, color=color.green, width=1, style=line.style_dashed)
+    tp3_line := line.new(bar_index, tp3, bar_index + 20, tp3, color=color.green, width=2, style=line.style_solid)
+
+// =====================================================================
+// 7. DASHBOARD UI
+// =====================================================================
+// Draw dashboard table
+var table db = table.new(position.top_right, 4, 10, bgcolor=color.new(color.black, 15), border_color=color.gray, border_width=1)
+
+if barstate.islast
+    // Title
+    table.cell(db, 0, 0, "AURIC SENTINEL", bgcolor=color.new(color.orange, 20), text_color=color.white, text_size=size.normal, width=15)
+    table.merge_cells(db, 0, 0, 3, 0)
+    
+    // Trend Context
+    table.cell(db, 0, 1, "HTF Trend Bias", text_color=color.gray, text_size=size.small)
+    table.cell(db, 1, 1, is_bullish_bias ? "BULLISH" : is_bearish_bias ? "BEARISH" : "NEUTRAL", bgcolor=is_bullish_bias ? color.new(color.green, 80) : is_bearish_bias ? color.new(color.red, 80) : color.new(color.gray, 80), text_color=color.white, text_size=size.small)
+    
+    table.cell(db, 0, 2, "Trend Confidence", text_color=color.gray, text_size=size.small)
+    table.cell(db, 1, 2, trend_conf, text_color=color.white, text_size=size.small)
+    
+    // Market Structure
+    table.cell(db, 0, 3, "Structure Phase", text_color=color.gray, text_size=size.small)
+    table.cell(db, 1, 3, is_fanned_bullish or is_fanned_bearish ? "Trending" : "Transitional", text_color=color.white, text_size=size.small)
+    
+    table.cell(db, 0, 4, "Premium/Discount", text_color=color.gray, text_size=size.small)
+    table.cell(db, 1, 4, zone_desc, bgcolor=zone_desc == "Discount" ? color.new(color.green, 80) : color.new(color.red, 80), text_color=color.white, text_size=size.small)
+    
+    // Environment
+    table.cell(db, 2, 1, "Session Status", text_color=color.gray, text_size=size.small)
+    table.cell(db, 3, 1, session_ok ? "OK" : "BLOCKED", bgcolor=session_ok ? color.new(color.green, 85) : color.new(color.red, 85), text_color=color.white, text_size=size.small)
+    
+    table.cell(db, 2, 2, "Volatility Filter", text_color=color.gray, text_size=size.small)
+    table.cell(db, 3, 2, vol_ok ? "FAVORABLE" : "UNFAVORABLE", bgcolor=vol_ok ? color.new(color.green, 85) : color.new(color.red, 85), text_color=color.white, text_size=size.small)
+    
+    // Signal Status
+    table.cell(db, 2, 3, "System State", text_color=color.gray, text_size=size.small)
+    table.cell(db, 3, 3, confirmed_buy ? "BUY CONFIRMED" : confirmed_sell ? "SELL CONFIRMED" : "MONITORING", bgcolor=confirmed_buy ? color.green : confirmed_sell ? color.red : color.gray, text_color=color.white, text_size=size.small)
+
+// =====================================================================
+// 8. ALERTS
+// =====================================================================
+if confirmed_buy
+    alert("AURIC SENTINEL BUY Signal confirmed on " + syminfo.ticker + ". Entry: " + str.tostring(close) + ". Timezone: PST (UTC+5)", alert.freq_once_per_bar_close)
+if confirmed_sell
+    alert("AURIC SENTINEL SELL Signal confirmed on " + syminfo.ticker + ". Entry: " + str.tostring(close) + ". Timezone: PST (UTC+5)", alert.freq_once_per_bar_close)

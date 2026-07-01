@@ -1,0 +1,204 @@
+AURIC SENTINEL
+DOCUMENT 10: FINAL INTEGRATION
+================================================================
+
+1. PURPOSE
+
+This document describes how all previously specified modules (Documents
+01 through 09) must be combined into a single, coherent, finished
+system. It does not introduce new module-level behavior; it defines the
+integration rules, combined acceptance criteria, and final quality
+assurance process that apply to AURIC SENTINEL as a whole.
+
+2. WHY THIS DOCUMENT EXISTS
+
+Individually well-specified modules can still fail to work correctly
+together if integration rules are not explicit. This document exists to
+ensure that the finished system behaves as a single coherent product
+rather than a loose collection of independently correct but
+inconsistently combined parts.
+
+3. INTEGRATION SEQUENCE
+
+Development and integration should proceed in the following order,
+consistent with the layered architecture defined in Document 01:
+
+1. Core Architecture foundation (Document 01) - data flow skeleton and
+   module communication contracts.
+2. EMA Trend Engine (Document 02) - implemented and independently
+   validated before any dependent module is built.
+3. Market Structure (Document 03) - implemented and validated using the
+   Trend Engine's finalized output.
+4. Signal Engine (Document 04) - implemented and validated using both
+   Trend Engine and Market Structure finalized output.
+5. Filter Engine (Document 05) - implemented and validated using Signal
+   Engine output.
+6. Risk Management (Document 08) - implemented and validated using
+   Filter Engine approved output.
+7. Dashboard UI (Document 06) - implemented last among the display
+   modules, once all upstream analytical modules produce stable,
+   finalized output to display.
+8. Alerts (Document 07) - implemented alongside or immediately after
+   the Dashboard, reusing its conventions.
+9. Scanner Optimization (Document 09) - implemented last, since it
+   depends on all core analytical modules being finalized, stable, and
+   reusable across symbols.
+
+4. FUNCTIONAL REQUIREMENTS FOR INTEGRATION
+
+- Every module must consume only the finalized outputs defined in its
+  own specification document; no module may reach into another
+  module's internal, non-exported working values.
+- Naming and labeling conventions (trend labels, structural labels,
+  signal confidence descriptors, color conventions) must be defined
+  once and reused identically across the Dashboard, Alerts, and Scanner
+  Optimization modules, per the consistency requirements stated in
+  their individual documents.
+- Settings across all modules must be organized into a single, logically
+  grouped settings panel, as described in Document 01, Section 8.
+- The finished system must support disabling any individual analytical
+  module (Trend, Structure, Signal, Filter) through settings, with
+  the Dashboard and Alerts clearly reflecting when a module is disabled
+  rather than displaying stale or default output for it.
+
+5. NON-FUNCTIONAL REQUIREMENTS FOR INTEGRATION
+
+- The fully integrated system must remain non-repainting end to end;
+  no combination of module interactions may produce retroactive changes
+  to previously confirmed chart output.
+- The fully integrated system must remain performant enough for
+  practical use, including when Scanner Optimization is enabled across
+  a full watchlist, consistent with the performance discipline
+  established in Document 01, Section 9.
+- All time displays across every module (Dashboard, Alerts, session
+  filter references) must consistently use Pakistan Standard Time
+  (UTC+5), with no exceptions.
+
+6. COMBINED SYSTEM WALKTHROUGH (EXPECTED BEHAVIOR)
+
+On each confirmed execution timeframe bar, the fully integrated system
+should behave as follows:
+1. The EMA Trend Engine finalizes higher timeframe bias and strength.
+2. The Market Structure module finalizes structural alignment and zone
+   classification, referencing the Trend Engine's bias.
+3. The Signal Engine checks for a qualifying trigger pattern, only
+   proceeding if trend and structure alignment conditions are met.
+4. If a candidate signal is found, the Filter Engine evaluates session,
+   volatility, and noise conditions.
+5. If approved, Risk Management calculates entry, stop, target, and
+   R-multiple framing.
+6. The Dashboard updates to reflect the complete current state across
+   all modules.
+7. Alerts fires a single, well-formatted notification for the new
+   approved signal, if alerts are enabled.
+8. If Scanner Optimization is enabled, the same evaluation occurs in
+   parallel for each watchlist symbol, summarized in the scan table.
+
+7. EDGE CASES AT THE INTEGRATION LEVEL
+
+- A module is disabled by the trader mid-analysis (for example, Market
+  Structure disabled): downstream modules must handle this gracefully,
+  either by falling back to a clearly reduced-confidence evaluation
+  path or by clearly indicating on the Dashboard that structural
+  confirmation is unavailable, per each module's own specification.
+- Conflicting settings are configured by the trader (for example,
+  extremely strict filters combined with a very short signal cooldown):
+  the system should still behave predictably according to each
+  module's individually defined rules, even if the practical result is
+  a very low signal frequency; this should not be treated as a bug.
+- Platform resource constraints (calculation limits, data request
+  limits) are reached during Scanner Optimization use: the system must
+  degrade according to the specific handling defined in Document 09
+  rather than causing errors elsewhere in the system.
+
+8. PERFORMANCE EXPECTATIONS FOR THE INTEGRATED SYSTEM
+
+The complete system, with all modules enabled on a single primary
+symbol, should run smoothly without perceptible lag on standard chart
+usage. With Scanner Optimization enabled across a full watchlist, some
+additional load is expected and acceptable, but must remain within the
+platform's practical operating constraints as documented in Document
+09.
+
+9. FUTURE EXPANSION CONSIDERATIONS
+
+- Any future additional module (for example, an intermarket correlation
+  layer, as noted in Document 01, Section 15) must be integrated
+  following the same pattern: clearly defined inputs from existing
+  finalized module output, clearly defined outputs for downstream
+  consumption, and full adherence to the non-repainting and PKT time
+  display requirements established throughout this documentation set.
+
+10. DEVELOPER NOTES
+
+- Integration testing should occur incrementally, following the
+  sequence in Section 3, rather than attempting to build and test all
+  modules simultaneously.
+- Maintain a single shared reference for labels, colors, and
+  terminology used across Dashboard, Alerts, and Scanner Optimization,
+  to prevent drift between these three presentation-facing modules.
+- Revisit Document 01 (Core Architecture) whenever an integration
+  question arises about which module is responsible for a given piece
+  of logic.
+
+11. FINAL ACCEPTANCE CRITERIA FOR THE COMPLETE SYSTEM
+
+- All individual module acceptance criteria (as defined in each
+  respective document) are met.
+- The complete system produces no repainting behavior anywhere, across
+  any module combination or settings configuration.
+- The complete system's Dashboard accurately and consistently reflects
+  the state of every enabled module at all times.
+- Alerts fire correctly, once per qualifying event, with content
+  matching the Dashboard's displayed state.
+- Scanner Optimization, when enabled, produces results consistent with
+  what the Dashboard would show if each scanned symbol were the primary
+  chart symbol.
+- All settings are logically grouped and every module can be
+  independently enabled or disabled without breaking other modules.
+- All time displays are consistently in Pakistan Standard Time across
+  the entire system.
+
+12. FINAL TESTING CHECKLIST
+
+- Full historical scroll-back test across a multi-year period on the
+  primary instrument (XAUUSD), confirming no repainting anywhere.
+- Full settings-combination spot check, enabling and disabling each
+  module independently and in combination, confirming graceful
+  behavior throughout.
+- Full Scanner Optimization test at maximum supported watchlist size,
+  confirming consistency with single-symbol Dashboard behavior and
+  acceptable performance.
+- Full alert-firing audit across a sample of historical signals,
+  confirming accurate, non-duplicated, correctly timed notifications.
+- Cross-device visual check (desktop and mobile chart sizes) confirming
+  Dashboard and Scanner table readability in both contexts.
+
+13. KNOWN LIMITATIONS OF THE COMPLETE SYSTEM
+
+- As noted in individual module documents, the system trades some
+  signal frequency for higher conviction per signal, and trades some
+  flexibility for architectural predictability. These are intentional,
+  documented design tradeoffs rather than defects.
+- Practical Scanner Optimization watchlist size remains bounded by the
+  charting platform's own data request limits, not by any deficiency in
+  this system's design.
+
+14. QUALITY ASSURANCE SIGN-OFF CHECKLIST
+
+Before considering AURIC SENTINEL complete, the following must all be
+independently verified:
+- Every module document's individual Acceptance Criteria section has
+  been satisfied.
+- Every module document's individual Testing Checklist has been
+  executed with passing results.
+- This document's Final Acceptance Criteria (Section 11) have been
+  satisfied.
+- This document's Final Testing Checklist (Section 12) has been
+  executed with passing results.
+- No open item remains where a module's behavior contradicts another
+  module's documented expectations.
+
+================================================================
+END OF AURIC SENTINEL DOCUMENTATION SET
+================================================================

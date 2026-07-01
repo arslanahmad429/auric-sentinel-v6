@@ -1,0 +1,330 @@
+AURIC SENTINEL
+DOCUMENT 09: SCANNER OPTIMIZATION
+================================================================
+
+1. PURPOSE
+
+The Scanner Optimization module defines how AURIC SENTINEL's core
+analytical logic should be adapted and optimized to operate across
+multiple symbols simultaneously, rather than being limited to a single
+chart's instrument. It also defines the general performance discipline
+that all other modules must follow so that multi-symbol operation
+remains practical.
+
+2. WHY THIS MODULE EXISTS
+
+A trader monitoring only one instrument at a time may miss opportunities
+occurring on other correlated or unrelated instruments. This module
+exists to extend AURIC SENTINEL's decision framework into a scanning
+context, allowing the trader to monitor a defined watchlist of symbols
+for qualifying conditions without needing to manually open and review
+each chart individually. It also exists to enforce performance
+discipline across the whole system, since scanning multiplies
+computational load by the number of watched symbols.
+
+3. FUNCTIONAL REQUIREMENTS
+
+- The module must support requesting and evaluating the core AURIC
+  SENTINEL decision chain (trend, structure, signal, filter) across a
+  trader-defined list of additional symbols beyond the current chart's
+  instrument.
+- The module must present scan results in a compact, table-like summary
+  showing, at minimum, each scanned symbol's current trend bias,
+  structural alignment, and whether an active approved signal currently
+  exists for that symbol.
+- The module must clearly indicate when a scanned symbol's data could
+  not be evaluated (for example, due to data availability limits),
+  rather than silently omitting it or showing a misleading default.
+- The module must respect the same non-repainting and confirmed-bar-
+  only principles used throughout the rest of the system for every
+  scanned symbol, not just the primary chart symbol.
+
+4. NON-FUNCTIONAL REQUIREMENTS
+
+- The module must operate within the charting platform's known
+  constraints on the number of simultaneous additional data requests,
+  and must clearly document this limitation to the trader rather than
+  silently failing when the limit is exceeded.
+- The module must be designed to minimize redundant calculation; where
+  possible, shared calculation logic already defined in Documents 02
+  through 05 should be reused rather than reimplemented separately for
+  scanning purposes.
+- Scanning must not degrade the responsiveness or accuracy of the
+  primary chart's own analysis for the instrument currently being
+  viewed.
+
+5. USER CONFIGURABLE SETTINGS
+
+- Trader-defined watchlist of additional symbols to scan, up to the
+  platform's supported maximum.
+- Toggle to enable/disable scanning entirely, since it is an optional
+  extension of the core single-symbol system.
+- Option to filter the scan results table to show only symbols with an
+  active approved signal, versus showing all watched symbols regardless
+  of current signal status.
+- Scan table screen position and size, independent of the primary
+  Dashboard's position and size.
+
+6. INPUT DESCRIPTION
+
+Primary input is the trader-defined watchlist, combined with the same
+categories of price data (current and higher timeframe) used by the
+core modules, requested for each additional watched symbol.
+
+7. OUTPUT DESCRIPTION
+
+The module's output is a summary table, separate from the main
+Dashboard (Document 06), showing per-symbol trend bias, structural
+alignment, and active signal status for every symbol on the watchlist,
+plus the primary chart symbol if the trader chooses to include it for
+consistency.
+
+8. VISUAL BEHAVIOUR
+
+The scan table should use the same color and label conventions
+established in the Dashboard module (Document 06) so that a given
+state (for example, "Bullish - Strong") is described identically
+whether it appears on the main Dashboard for the current symbol or in
+the scan table for a different symbol. The table should be compact
+enough to avoid overwhelming the chart, prioritizing the ability to
+scan the list quickly over displaying full per-symbol detail.
+
+9. SIGNAL BEHAVIOUR
+
+The scanner does not generate independent signals; it surfaces the same
+Signal Engine and Filter Engine conclusions (Documents 04 and 05) that
+would apply if the trader were viewing each scanned symbol's own chart
+directly. A signal shown as active in the scan table must be understood
+by the trader to carry the same meaning and risk framing principles
+described in Document 08, even though full risk framing detail may not
+fit within the compact scan table format.
+
+10. TRADING PHILOSOPHY BEHIND THIS MODULE
+
+The scanner extends the system's core "confluence before trigger"
+philosophy across a watchlist, allowing the trader to maintain the same
+disciplined, multi-layer decision process across multiple opportunities
+without diluting the quality or consistency of that process for any
+individual symbol.
+
+11. DECISION PROCESS
+
+For each symbol on the watchlist, on each confirmed bar (subject to
+platform data request limits):
+1. Request the necessary price data for that symbol's higher timeframe
+   and execution timeframe context.
+2. Run the same trend, structure, signal, and filter evaluation defined
+   in Documents 02 through 05.
+3. Summarize the resulting state into a single compact table row.
+4. Flag any symbol where data could not be successfully retrieved or
+   evaluated.
+
+12. EDGE CASES
+
+- Watchlist size requested by the trader exceeds the platform's
+  supported maximum simultaneous data requests: the module must clearly
+  communicate this limitation and truncate the list predictably (for
+  example, evaluating only the first N symbols) rather than failing
+  silently.
+- A scanned symbol has significantly different volatility or liquidity
+  characteristics than the primary instrument the system was designed
+  around: results for that symbol should still be reported using the
+  same framework, with the understanding documented that filter
+  sensitivity may need per-symbol tuning in a future enhancement.
+- A scanned symbol temporarily has unavailable or delayed data: it must
+  be flagged as such in the table rather than showing stale or default
+  values.
+
+13. PERFORMANCE EXPECTATIONS
+
+The scanner must be designed with the explicit understanding that
+computational cost scales with watchlist size, and must therefore
+prioritize efficient reuse of core module logic (per Document 01,
+Section 9) to keep the overall script within the platform's performance
+constraints even at the maximum supported watchlist size.
+
+14. FUTURE EXPANSION IDEAS
+
+- Sortable scan table (for example, sorting by signal recency or trend
+  strength).
+- Per-symbol filter sensitivity overrides for traders scanning across
+  instruments with meaningfully different volatility characteristics.
+
+15. DEVELOPER NOTES
+
+- Do not duplicate the trend, structure, signal, or filter logic
+  specifically for scanning; the scanner must call into the same
+  shared logic used for the primary chart symbol, parameterized by
+  symbol, to avoid divergent behavior between single-symbol and
+  scanning contexts.
+- Clearly document the platform's specific data request limits during
+  implementation, since this constrains the maximum realistic
+  watchlist size.
+
+16. ACCEPTANCE CRITERIA
+
+- Scan table results for any given symbol match what would be shown on
+  the Dashboard (Document 06) if that symbol were the primary chart
+  symbol, confirming shared-logic consistency.
+- Watchlist size limits are clearly communicated to the trader rather
+  than silently enforced.
+- Data unavailability for any scanned symbol is clearly flagged.
+
+17. TESTING CHECKLIST
+
+- Verify scan table output matches primary-chart Dashboard output for
+  the same symbol under the same conditions.
+- Verify behavior at and beyond the platform's maximum supported
+  watchlist size.
+- Verify graceful, clearly flagged handling of temporarily unavailable
+  symbol data.
+
+18. KNOWN LIMITATIONS
+
+- Maximum watchlist size is inherently bounded by the charting
+  platform's data request limits, not by this module's design.
+- Filter sensitivity tuned for the primary instrument (for example,
+  XAUUSD) may not be optimally calibrated for symbols with very
+  different volatility characteristics without future per-symbol
+  tuning capability.
+
+19. INTEGRATION REQUIREMENTS
+
+- Requires reuse of the core logic defined in Documents 02 through 05
+  for each scanned symbol.
+- Should follow the same color/label conventions as the Dashboard
+  (Document 06).
+
+20. COMMON IMPLEMENTATION MISTAKES TO AVOID
+
+- Reimplementing trend/structure/signal/filter logic separately for
+  scanning purposes, risking divergence from single-symbol behavior.
+- Silently truncating or failing when watchlist size exceeds platform
+  limits instead of clearly communicating the constraint.
+- Allowing scanning overhead to degrade the primary chart's own
+  analysis performance.
+
+21. QUALITY ASSURANCE CHECKLIST
+
+- Scan table and primary Dashboard produce identical conclusions for
+  the same symbol under the same market conditions.
+- Watchlist limit behavior is predictable and clearly communicated.
+- Overall script performance remains acceptable at maximum supported
+  watchlist size.
+
+22. EXTENDED SCANNER SPECIFICATIONS
+
+This section expands the Scanner Optimization module into a full
+institutional watchlist tool, incorporating the extended behavioural
+and decision-hierarchy outputs defined in Documents 02 through 04. As
+with all sections in this documentation set, only required behaviour
+and expected output are described; no implementation method or code is
+specified.
+
+22.1 Watchlist Management
+
+The module must allow the trader to organize the configured watchlist
+beyond a simple flat list, supporting logical grouping where practical
+(for example, a trader may wish to distinguish a "core" watchlist from
+an "exploratory" watchlist). At minimum, the module must clearly
+display which symbols are currently included, and must allow the
+trader to add or remove symbols through the standard settings panel
+without requiring changes to any other module's configuration.
+
+22.2 Symbol Status
+
+For every watched symbol, the module must report a concise status
+indicator distinguishing at minimum: actively monitored with no
+qualifying condition, actively monitored with an approved signal
+present, and unavailable/degraded (data could not be retrieved or
+evaluated, per Document 09, Section 12). This status must be the
+first, most prominent piece of information shown per symbol in the
+scan table.
+
+22.3 Trend Ranking
+
+The module must support ranking or sorting watched symbols by their
+current Dynamic Trend Strength and Trend Confidence Rating (Document
+02, Sections 22.2 and 22.19), allowing the trader to quickly identify
+which watched symbols currently exhibit the cleanest, highest-
+conviction trend context, independent of whether an active signal
+currently exists on that symbol.
+
+22.4 Signal Ranking
+
+The module must support ranking or sorting watched symbols by Signal
+Priority (Document 04, Section 22.10) among those symbols currently
+carrying an active approved signal, allowing the trader to immediately
+identify which active opportunity across the watchlist deserves primary
+attention.
+
+22.5 Confidence Ranking
+
+The module must support ranking or sorting watched symbols by Signal
+Confidence (Document 04, Section 22.11) as a distinct ranking option
+from Signal Ranking, since a trader may specifically want to prioritize
+by confidence score even when comparing signals of similar priority
+tier.
+
+22.6 Filter Status
+
+For every watched symbol carrying a candidate or active signal, the
+module must report whether that signal currently satisfies the Filter
+Engine's session and volatility conditions (Document 05), consistent
+with the reduced-confidence/rejection reporting already required
+elsewhere in the system, so the trader understands not only that a
+signal exists but whether current conditions actually support acting
+on it.
+
+22.7 Performance Optimisation
+
+Beyond the general performance discipline already required in Document
+09, Section 4, the module must support a reduced-evaluation mode for
+lower-priority watchlist symbols (for example, evaluating Trend and
+Structure context at a lower refresh frequency than the primary chart
+symbol) if needed to remain within platform performance constraints at
+larger watchlist sizes, provided this reduced frequency is clearly
+communicated to the trader rather than silently applied.
+
+22.8 Priority Sorting
+
+The module must support a combined, single default sort order that
+synthesizes Symbol Status, Signal Priority, and Confidence Ranking
+(Sections 22.2, 22.4, 22.5) into one sensible default view, so that a
+trader who does not want to manually choose a specific ranking method
+still sees the most actionable symbols surfaced near the top of the
+scan table by default.
+
+22.9 Institutional Watchlist Mode
+
+Institutional Watchlist Mode is an optional, more detailed scan table
+configuration that additionally surfaces Market Phase (Document 03,
+Section 22.9) and Signal Grade (Document 06, Section 22.12) per symbol,
+intended for traders monitoring a smaller, curated watchlist who want
+deeper per-symbol context than the standard compact scan table
+provides, at the cost of requiring more screen space per row.
+
+22.10 Scanner Limitations
+
+This section must clearly and explicitly document, for the trader's
+awareness, that: scanner evaluation quality for any given symbol is
+only as reliable as that symbol's own data availability and liquidity
+characteristics; filter sensitivity calibrated primarily around the
+system's primary intended instrument may not be equally well-calibrated
+for all watchlist symbols (consistent with Document 09, Section 18);
+and reduced-evaluation performance optimisation (Section 22.7), when
+active, means that some watchlist symbols may reflect slightly
+less current information than the primary chart symbol at any given
+moment. These limitations must be treated as accepted, documented
+tradeoffs rather than defects.
+
+22.11 Integration Notes for Extended Scanner Behaviour
+
+All extended scanner capabilities described in this section must
+continue to rely exclusively on the shared core logic reuse principle
+already established in Document 09, Section 15; no ranking, status, or
+mode described in this section may be implemented through separate,
+divergent logic from the core Trend, Structure, Signal, and Filter
+modules. All labels, colours, and grading conventions used in this
+section must remain identical to those established in Document 06,
+Section 22, for the same underlying state.

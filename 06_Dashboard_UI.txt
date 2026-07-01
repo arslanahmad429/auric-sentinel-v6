@@ -1,0 +1,362 @@
+AURIC SENTINEL
+DOCUMENT 06: DASHBOARD UI
+================================================================
+
+1. PURPOSE
+
+The Dashboard UI module is responsible for converting the internal
+state of every other module into a single, concise, human-readable
+visual report displayed directly on the chart. It is the module through
+which the trader actually consumes the system's conclusions; all other
+modules exist to produce information that this module presents clearly.
+
+2. WHY THIS MODULE EXISTS
+
+A trading system with rich internal logic is only useful if a trader
+can quickly and accurately understand its conclusions at a glance,
+without needing to open settings or mentally reconstruct the reasoning
+chain. This module exists to serve as the single point of truth
+visible on the chart, ensuring the trader never has to guess what the
+system currently believes about trend, structure, active signals, and
+risk framing.
+
+3. FUNCTIONAL REQUIREMENTS
+
+- The dashboard must display, at minimum: current EMA Trend Engine
+  bias and strength, current Market Structure alignment status and
+  zone classification, current active signal (if any) with its
+  direction and confidence descriptor, current filter status (whether
+  session/volatility conditions are currently favorable), and current
+  risk framing for any active signal (entry, stop, targets, as defined
+  in Document 08).
+- The dashboard must display all time-based information in Pakistan
+  Standard Time (UTC+5), clearly labeled.
+- The dashboard must support a "Simple" mode showing only the most
+  essential rows, and a "Full" mode showing the complete detailed
+  breakdown, selectable by the trader.
+- The dashboard must support a debug mode that exposes additional
+  internal diagnostic rows (for example, raw counts or intermediate
+  values) intended for development and troubleshooting rather than
+  live trading use, clearly separated from the main trading-relevant
+  rows.
+- The dashboard must support trader-configurable size and screen
+  position so that it does not overlap important chart areas
+  regardless of the trader's layout.
+
+4. NON-FUNCTIONAL REQUIREMENTS
+
+- The dashboard must update every bar based only on finalized,
+  confirmed module output; it must never display a value that could
+  later change retroactively for the same historical bar.
+- The dashboard must remain readable on both desktop-sized chart
+  windows and smaller mobile chart windows.
+- The dashboard must avoid visual overload; each row must have a
+  distinct, immediately recognizable purpose, and decorative elements
+  that do not convey decision-relevant information should be avoided.
+
+5. USER CONFIGURABLE SETTINGS
+
+- Simple/Full mode toggle.
+- Debug mode toggle.
+- Dashboard screen position (selectable from a standard set of screen
+  locations).
+- Dashboard size (text/row scale).
+- Toggle for which optional rows to include in Full mode (for example,
+  a trader may want risk framing rows but not structural detail rows).
+
+6. INPUT DESCRIPTION
+
+The dashboard's inputs are the finalized outputs of every upstream
+module: EMA Trend Engine (Document 02), Market Structure (Document 03),
+Signal Engine (Document 04), Filter Engine (Document 05), and Risk
+Management (Document 08). The dashboard must not perform any original
+calculation of its own; it strictly formats and displays values
+produced elsewhere.
+
+7. OUTPUT DESCRIPTION
+
+The dashboard's output is a purely visual, on-chart table or panel. It
+does not produce any value consumed by other modules; it is the
+terminal module in the data flow for display purposes (Alerts, Document
+07, is a separate terminal module for notification purposes).
+
+8. VISUAL BEHAVIOUR
+
+- Each row should use color coding consistent with the rest of the
+  system's conventions (for example, bullish/long context in one
+  consistent color family, bearish/short context in another, neutral/
+  inactive states in a muted neutral color).
+- Active, currently favorable states (approved signal, favorable
+  session) should be visually emphasized (for example, brighter or
+  highlighted) relative to inactive or unfavorable states.
+- Numeric values relevant to risk (such as current unrealized R-
+  multiple on an active signal, if tracked) should use a consistent
+  positive/negative color convention.
+- Headers separating logical sections of the dashboard (trend section,
+  structure section, signal section, risk section) should be visually
+  distinct from data rows so the trader can quickly scan to the section
+  they care about.
+- The dashboard must use a flat, clean visual style consistent with the
+  charting platform's native table rendering capabilities; it should
+  not attempt visual effects unsupported by the platform.
+
+9. SIGNAL BEHAVIOUR
+
+The dashboard reflects, but does not generate or modify, signal state.
+When a new signal is approved by the Filter Engine, the dashboard must
+update to reflect it on the same confirmed bar the signal became
+active, and must clearly show when a signal is no longer active
+(expired, invalidated, or superseded).
+
+10. TRADING PHILOSOPHY BEHIND THIS MODULE
+
+The dashboard embodies a "briefing, not clutter" philosophy: the
+trader should be able to glance at the panel and understand the
+complete current state of the system's reasoning in a few seconds, the
+way a trader would read a concise institutional morning briefing rather
+than sift through raw data.
+
+11. DECISION PROCESS
+
+On each confirmed bar:
+1. Pull the finalized state from every upstream module.
+2. Format each value according to its display convention (label,
+   color, unit).
+3. Render the appropriate row set based on the current Simple/Full/
+   Debug mode selection.
+4. Position and size the panel according to trader settings.
+
+12. EDGE CASES
+
+- One or more upstream modules report an "undetermined" or
+  "insufficient data" state: the dashboard must clearly display this
+  rather than showing a blank row or a misleading default value.
+- Very small chart window sizes on mobile devices: the dashboard must
+  degrade to a more compact layout or reduced row set rather than
+  becoming unreadable or overflowing the visible chart area.
+- Multiple simultaneous state changes on the same bar (for example, a
+  new signal and a trend classification change happening together):
+  the dashboard must reflect all changes accurately and simultaneously.
+
+13. PERFORMANCE EXPECTATIONS
+
+The dashboard should render without perceptible lag on bar confirmation
+and should not be a significant contributor to overall script
+performance overhead relative to the analytical modules.
+
+14. FUTURE EXPANSION IDEAS
+
+- Historical performance summary row (for example, recent signal count
+  and outcome distribution) as an optional Full-mode addition.
+- Trader-selectable color theme presets.
+
+15. DEVELOPER NOTES
+
+- Build the dashboard as a pure formatting/rendering layer with zero
+  original business logic, to keep its responsibility strictly limited
+  to presentation.
+- Maintain a single shared color/label convention table used by both
+  this module and the Alerts module (Document 07) so that the same
+  state is described identically in both places.
+
+16. ACCEPTANCE CRITERIA
+
+- All required rows described in Section 3 are present and accurately
+  reflect upstream module state at all times.
+- Simple, Full, and Debug modes each render correctly and distinctly.
+- All displayed times are in PKT and clearly labeled as such.
+
+17. TESTING CHECKLIST
+
+- Verify dashboard accuracy against upstream module state across a
+  variety of historical bars, including trending, ranging, and
+  transitional conditions.
+- Verify readability at multiple dashboard size settings and multiple
+  screen positions.
+- Verify debug mode rows are clearly separated from and do not confuse
+  the main trading-relevant rows.
+
+18. KNOWN LIMITATIONS
+
+- Dashboard readability on very small mobile screens may require the
+  trader to select a reduced row set; this is an accepted platform
+  constraint rather than a defect.
+
+19. INTEGRATION REQUIREMENTS
+
+- Requires finalized, confirmed-bar output from all upstream analytical
+  modules (Documents 02 through 05, and Document 08).
+
+20. COMMON IMPLEMENTATION MISTAKES TO AVOID
+
+- Performing original calculations inside the dashboard module instead
+  of strictly displaying upstream values.
+- Inconsistent color conventions between the dashboard and other
+  visual elements on the chart.
+- Overcrowding the panel with low-value decorative rows that do not
+  aid trading decisions.
+
+21. QUALITY ASSURANCE CHECKLIST
+
+- Every row on the dashboard can be traced to a specific upstream
+  module output.
+- Color and label conventions are consistent across Simple, Full, and
+  Debug modes.
+- Panel remains legible and non-overlapping across supported screen
+  sizes and positions.
+
+22. INSTITUTIONAL CONTROL PANEL SPECIFICATIONS
+
+This section expands the Dashboard from a basic status panel into a
+full institutional-style control panel, incorporating the extended
+behavioural outputs defined throughout Documents 02, 03, and 04. As
+with all sections in this documentation set, only display requirements
+and expected content are described; no rendering method or code is
+specified.
+
+22.1 Trend Row
+
+Displays the EMA Trend Engine's primary bias (Document 02, Section 3)
+alongside its Healthy/Weak classification (Document 02, Section 22.10),
+using a single concise combined label (for example, a direction word
+paired with a qualitative descriptor).
+
+22.2 Trend Strength Row
+
+Displays the Dynamic Trend Strength rating (Document 02, Section 22.2)
+as a distinct row from the basic Trend Row, since strength is
+continuously updating and warrants its own dedicated, clearly labeled
+space to avoid being confused with the static directional bias.
+
+22.3 Structure Status Row
+
+Displays the Market Structure module's current alignment flag, Market
+Phase (Document 03, Section 22.9), and most recent structural event
+type (break of structure, character change, or structure failure),
+combined into a compact summary appropriate for the active display mode
+(Simple/Full).
+
+22.4 Momentum Row
+
+Displays the execution-timeframe momentum confirmation state referenced
+by Signal Engine Stage 5 (Document 04, Section 22.5), shown only when a
+candidate or active signal exists, since momentum context is most
+relevant in the presence of an active decision process.
+
+22.5 EMA Status Row
+
+Displays the current Ribbon Behaviour state (Document 02, Section 22.3)
+along with active Expansion/Compression and Acceleration/Deceleration
+flags (Document 02, Sections 22.4-22.7), summarized as a compact set of
+short indicators rather than full descriptive text, to preserve
+dashboard compactness.
+
+22.6 Session Row
+
+Displays the Filter Engine's current session evaluation (Document 05,
+Section 3), including whether the current time is within an approved
+session window, shown in Pakistan Standard Time consistent with the
+system-wide time display requirement.
+
+22.7 Volatility Row
+
+Displays the Filter Engine's current volatility evaluation relative to
+the instrument's historical baseline (Document 05, Section 3), using a
+plain-language descriptor (for example, low / normal / elevated /
+extreme) rather than a raw numeric value, for immediate readability.
+
+22.8 Risk Status Row
+
+Displays a summary of the active signal's current risk framing state
+from Risk Management (Document 08), including whether breakeven has
+been triggered and current live unrealized R-multiple progress, shown
+only when a signal is active.
+
+22.9 Confidence Score Row
+
+Displays the Signal Engine's Signal Confidence measure (Document 04,
+Section 22.11) for the current or most recent candidate/active signal,
+using a clear, immediately interpretable scale or tier label consistent
+with the labeling used elsewhere in the system.
+
+22.10 Entry Quality Row
+
+Displays the Signal Quality tier (Document 04, Section 22.9) and, where
+applicable, the specific entry classification (High Probability Entry,
+standard approved entry, Aggressive-mode entry) so the trader
+immediately understands not just that a signal exists, but how it was
+categorized by the decision hierarchy.
+
+22.11 Market Condition Row
+
+Displays a combined summary of Market Phase (Document 03, Section 22.9)
+and overall EMA behavioural health (Document 02, Section 22.10),
+providing a single-glance answer to "what kind of market are we
+currently in," independent of any specific active signal.
+
+22.12 Signal Grade Row
+
+Displays a single letter-tier or equivalent plain-language grade (for
+example, a small ordered set of grade labels) synthesizing Signal
+Quality, Signal Confidence, and Structure Strength Rating into the
+simplest possible single-glance indicator of the current or most recent
+signal's overall standing, intended primarily for Simple mode display.
+
+22.13 Overall System Status Row
+
+Displays a top-level summary indicating whether the system as a whole
+is currently in an active-signal state, a monitoring/no-signal state,
+or a degraded state (one or more upstream modules reporting
+undetermined or insufficient data, per Document 01, Section 10). This
+row must always be present regardless of display mode, since it
+represents the single most important piece of information for a
+trader glancing at the chart briefly.
+
+22.14 Dashboard Colour Philosophy
+
+Beyond the basic positive/negative and directional conventions already
+established in Section 8, the institutional control panel must apply a
+consistent colour philosophy across all extended rows: full-standing,
+high-confidence states use the strongest/brightest variant of their
+directional colour family; reduced-confidence or flagged states
+(Early Trend Weakness, Trend Exhaustion, Structure Failure, aged
+signals) use a distinct cautionary colour (separate from the standard
+negative/bearish colour) so the trader can distinguish "this is bearish"
+from "this is uncertain" at a glance; and degraded/undetermined states
+use a neutral, muted colour reserved exclusively for that purpose
+across the entire dashboard.
+
+22.15 Compact Mode
+
+Compact Mode is a display option, distinct from and more condensed than
+the existing Simple mode (Document 06, Section 3), intended for
+constrained screen space (for example, small mobile chart windows).
+Compact Mode must display only the Overall System Status Row, Trend
+Row, Structure Status Row, and Signal Grade Row, omitting all other
+rows regardless of Full/Debug settings, since it is designed for
+minimal footprint rather than partial detail.
+
+22.16 Professional Mode
+
+Professional Mode is the most complete display option, encompassing
+every row described in this section simultaneously, organized into
+clearly separated visual sections (Context section: Trend, Trend
+Strength, Structure Status, Market Condition; Execution section:
+Momentum, EMA Status, Entry Quality, Confidence Score, Signal Grade;
+Environment section: Session, Volatility; Outcome section: Risk Status,
+Overall System Status). Professional Mode is intended for traders who
+want the complete institutional-style briefing on a single panel and
+must remain organized enough to stay scannable despite its density.
+
+22.17 Integration Notes for the Control Panel
+
+All rows described in this section must draw exclusively from
+finalized upstream module output, consistent with the Dashboard's
+strict presentation-only responsibility (Document 06, Section 15).
+Any new extended data point referenced in this section (Signal
+Confidence, Signal Quality, Market Phase, Ribbon Behaviour state, and
+so on) must be exposed by its originating module in a directly
+consumable form, and any label or colour convention introduced here
+must be reused identically by the Alerts module (Document 07) and
+Scanner Optimization module (Document 09) wherever they reference the
+same underlying state.
